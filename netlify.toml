@@ -1,0 +1,21 @@
+# EspaciaV2 — configuración de Netlify
+[build]
+  # Solo se publica la carpeta "frontend". El resto del repositorio (documentación, pruebas) no queda expuesto.
+  publish = "frontend"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Las funciones se llaman como /api/<nombre>  (por ejemplo /api/ingresar)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "same-origin"

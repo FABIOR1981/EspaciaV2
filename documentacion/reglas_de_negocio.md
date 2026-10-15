@@ -167,9 +167,9 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 
 ---
 
-## 13. Implementación del backend (v0.4.0)
+## 13. Implementación del backend (v0.5.0)
 
-**Archivos y qué cubren** (146 pruebas automáticas; corren solas en GitHub Actions en cada subida):
+**Archivos y qué cubren** (170 pruebas automáticas; corren solas en GitHub Actions en cada subida):
 
 | Archivo | Contenido |
 |---|---|
@@ -185,12 +185,32 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 | `netlify/functions/nucleo/sesion.js` | Token de sesión firmado (HS256) con vencimiento, sin dependencias. Rechaza `alg: none`, otros algoritmos y firmas alteradas. |
 | `netlify/functions/nucleo/usuarios_servicio.js` | Ingresar, listar, alta, edición, reinicio y cambio de clave. El mensaje de error al ingresar es el mismo si el usuario no existe, está inactivo o la clave es incorrecta (y el tiempo de respuesta tampoco lo distingue). Nunca devuelve el hash. |
 | `netlify/functions/nucleo/migracion_usuarios.js` | Convierte el `usuarios.json` de Espacia al formato de V2. Se niega a migrar si hay repetidos, roles desconocidos o usuarios sin contraseña. |
+| `netlify/functions/nucleo/http.js` | Recorrido común de toda petición protegida: método permitido, token firmado y vigente, usuario todavía activo en el archivo de usuarios (rige su **rol actual**, no el del token), obligación de cambiar la clave y cuerpo JSON acotado (20 KB). Los errores inesperados quedan en el log del servidor y al navegador solo llega un mensaje genérico. |
+| `netlify/functions/nucleo/dependencias.js` | Arma configuración, Google y GitHub una sola vez por instancia. |
+| `netlify/functions/*.js` (6 funciones) | `ingresar`, `clave`, `reservas`, `bloqueos`, `usuarios`, `reglas`. Se llaman como `/api/<nombre>`. |
+| `netlify.toml` | Publica solo la carpeta `frontend` (la documentación y las pruebas no quedan expuestas) y redirige `/api/*` a las funciones. |
 | `pruebas/*.prueba.js` y `pruebas/ayudas/*` | Una prueba por cada regla de este documento, con Google Calendar y GitHub simulados (nunca tocan datos reales). |
 
 **Hallazgos de la sección 10 ya cubiertos por el diseño:** 1 a 5 (validación en servidor y permisos), 8 (configuración única en `reglas.json`), 12 (los días de la semana se calculan sobre el texto de la fecha, no con la zona del servidor).
 **También cubiertos ahora:** 9 (después de crear se vuelve a verificar el día; si dos personas reservan a la vez, se queda la que llegó primero y la otra se deshace), 11 (un solo módulo de Google), y el bloqueo múltiple es "todo o nada" (si una creación falla o choca, no queda ninguno).
 **Hallazgos 6 y 7 en proceso:** contraseñas con sal y sesión firmada ya están hechas; el secreto de sesión no tiene valor por defecto (sección 13, supuesto 8) y el token de GitHub nunca viene del navegador.
-**Pendientes de implementar:** las funciones HTTP que exponen todo esto (ingreso, reservas, cancelaciones, bloqueos, usuarios) y la pantalla.
+**Pendientes de implementar:** el respaldo diario (`respaldo.js`, programado) y la pantalla (frontend).
+
+### Rutas HTTP
+
+| Ruta | Método | Quién | Qué hace |
+|---|---|---|---|
+| `/api/reglas` | GET | público | Entrega `reglas.json` para que el navegador use la misma fuente que el servidor |
+| `/api/ingresar` | POST `{usuario, clave}` | público | Devuelve el token, la sesión y cuándo vence |
+| `/api/clave` | POST `{claveActual, claveNueva}` | cualquiera con sesión | Única ruta que funciona mientras deba cambiar su clave |
+| `/api/reservas` | GET `?fecha=` | con sesión | Grilla del día (los usuarios ven "Ocupado" en lo ajeno) |
+| `/api/reservas` | GET `?desde=&hasta=[&usuario=]` | con sesión | Mis reservas; admin y gestor pueden pedir las de otra persona |
+| `/api/reservas` | POST `{consultorio, fecha, hora, duracion, paraUsuario?}` | con sesión | Crear reserva |
+| `/api/reservas` | DELETE `?id=` | con sesión | Cancelar (también sirve para deshacer un bloqueo) |
+| `/api/bloqueos` | POST `{consultorios, fecha, horaInicio?, horaFin?, diaCompleto?, observacion?}` | admin y gestor | Crear bloqueos, todo o nada |
+| `/api/usuarios` | GET / POST / PATCH `?id=` / POST `?id=&accion=reiniciar-clave` | admin y gestor | Listar, alta, editar y reiniciar clave |
+
+Códigos HTTP: 400 reglas o datos inválidos, 401 sin sesión o credenciales incorrectas, 403 sin permiso o debe cambiar la clave, 404 no existe, 409 horario ocupado o conflicto, 413 petición demasiado grande, 500 error inesperado.
 
 ### Supuestos que adopté y que debés confirmar o cambiar
 
@@ -219,10 +239,13 @@ Cada uno vive en un solo lugar del código; cambiarlo es una edición pequeña.
 18. **Clave temporal:** se muestra una sola vez al crear o reiniciar, no se guarda en ningún lado, y obliga a cambiarla en el primer ingreso.
 19. **Migración realizada con tu archivo real:** 58 usuarios (54 `usuario`, 2 `gestor`, 2 `admin`; 56 activos). 45 quedan con `requiereCambioPass = true`: los 44 que seguían con la clave inicial más 1 que ya estaba marcado.
 
-**Pendientes de definir en la capa HTTP:**
-- Que el token de una cuenta con `requiereCambioPass` **solo sirva para cambiar la clave** (hay que reforzarlo en el servidor, igual que las demás reglas).
+20. **Sesión revocable de inmediato (adoptado, a confirmar):** en cada petición el servidor lee el archivo de usuarios; si la persona fue dada de baja, la sesión deja de servir en ese momento, y se usa su rol actual. Costo: una lectura a GitHub por petición.
+21. **Cambio de clave obligatorio, reforzado en el servidor:** mientras `requiereCambioPass` sea verdadero, solo funciona `/api/clave`; el resto responde 403 `DEBE_CAMBIAR_CLAVE`.
+22. **Sin CORS:** el navegador llama a `/api/...` en el mismo sitio, por lo que no se habilita ningún otro origen.
+23. **Detalle de errores de configuración:** el nombre de la variable que falta se muestra al navegador solo con `ESPACIAV2_MODO=pruebas`; en producción solo queda en el log de Netlify.
+
+**Pendiente de definir en la capa HTTP:**
 - Protección contra intentos de adivinar claves (límite de intentos por usuario o por origen). Las funciones de Netlify no guardan estado; las opciones son aprovechar el costo del hash (unos 50 ms por intento) más un límite de peticiones de Netlify, o registrar los intentos fallidos en otro lugar.
 
-**Pendiente de decidir:** si un usuario desactivado o con el rol cambiado pierde la sesión **de inmediato** (el servidor consulta el archivo de usuarios en cada petición) o **al vencer el token** (4 h para usuario, 12 h para admin y gestor). Lo primero es más seguro; lo segundo es más rápido y barato.
 
 **Pendiente de verificar en Netlify:** a qué hora corre realmente el backup (sección 7), porque de eso depende la regla de que el gestor cierre "ayer" hasta las 02:00.

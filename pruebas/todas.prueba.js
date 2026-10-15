@@ -11,3 +11,4 @@ require('./contrasenas.prueba.js');
 require('./sesion.prueba.js');
 require('./usuarios_servicio.prueba.js');
 require('./migracion_usuarios.prueba.js');
+require('./http.prueba.js');
