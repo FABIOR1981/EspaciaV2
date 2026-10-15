@@ -109,7 +109,15 @@ async function actualizarUsuarios(cfg, cambiar, mensaje, { fetchFn = fetch, inte
  */
 function crearAlmacenDeUsuarios(cfg, opciones = {}) {
   return {
-    leer: async () => (await leerUsuarios(cfg, opciones)).usuarios,
+    leer: async () => {
+      const { usuarios, sha } = await leerUsuarios(cfg, opciones);
+      // GitHub responde 404 tanto si el archivo no existe como si el token no tiene acceso al repo.
+      // Para ingresar y validar sesiones eso es un error de configuración, no "no hay usuarios".
+      if (sha === null) {
+        throw new ErrorGitHub('No se encontró el archivo de usuarios: revise el repo, la ruta y los permisos del token.', 500);
+      }
+      return usuarios;
+    },
     actualizar: (cambiar, mensaje) => actualizarUsuarios(cfg, cambiar, mensaje, opciones),
   };
 }

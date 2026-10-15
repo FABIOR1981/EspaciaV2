@@ -56,6 +56,13 @@ function responderErrorInterno(e) {
     if (process.env.ESPACIAV2_MODO === 'pruebas') return respuestaDeConfiguracionIncompleta(e);
   } else {
     console.error(`Error interno (${e && e.name}): ${e && e.message}`);
+    // En modo pruebas se muestra el motivo para poder corregir la configuración; en producción, nunca.
+    if (process.env.ESPACIAV2_MODO === 'pruebas') {
+      return responder(500, {
+        error: { codigo: 'ERROR_INTERNO', mensaje: 'Ocurrió un error inesperado.' },
+        detalle: [`${e && e.name}: ${e && e.message}`],
+      });
+    }
   }
   return responderError({ estado: 500, codigo: 'ERROR_INTERNO', mensaje: 'Ocurrió un error inesperado. Intente de nuevo más tarde.' });
 }

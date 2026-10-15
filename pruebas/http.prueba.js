@@ -375,3 +375,28 @@ test('configuración incompleta: en modo pruebas se indica qué variable falta; 
     else process.env.ESPACIAV2_MODO = modoOriginal;
   }
 });
+
+test('modo pruebas: un error interno muestra el motivo; en producción, no', async () => {
+  const { llamar, ingresarComo, repo } = await crearEntorno();
+  const luis = await ingresarComo('Luis', 'ClaveLuis1');
+  repo.listarDia = async () => { throw new Error('No se encontró el archivo de usuarios'); };
+  const modoOriginal = process.env.ESPACIAV2_MODO;
+  const silencio = console.error;
+  console.error = () => {};
+  try {
+    process.env.ESPACIAV2_MODO = 'pruebas';
+    const enPruebas = await llamar('reservas', { params: { fecha: '2026-10-19' }, token: luis });
+    assert.equal(enPruebas.estado, 500);
+    assert.match(enPruebas.cuerpo.detalle[0], /No se encontró el archivo de usuarios/);
+
+    process.env.ESPACIAV2_MODO = 'produccion';
+    const enProduccion = await llamar('reservas', { params: { fecha: '2026-10-19' }, token: luis });
+    assert.equal(enProduccion.estado, 500);
+    assert.equal(enProduccion.cuerpo.detalle, undefined);
+    assert.ok(!enProduccion.crudo.includes('No se encontró'));
+  } finally {
+    console.error = silencio;
+    if (modoOriginal === undefined) delete process.env.ESPACIAV2_MODO;
+    else process.env.ESPACIAV2_MODO = modoOriginal;
+  }
+});
