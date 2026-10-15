@@ -166,9 +166,9 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 
 ---
 
-## 13. Implementación inicial del backend (v0.1.0)
+## 13. Implementación del backend (v0.2.0)
 
-**Archivos y qué cubren** (48 pruebas automáticas, todas pasan con `npm test`):
+**Archivos y qué cubren** (90 pruebas automáticas; corren solas en GitHub Actions en cada subida):
 
 | Archivo | Contenido |
 |---|---|
@@ -176,10 +176,14 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 | `netlify/functions/nucleo/reglas_de_negocio.js` | Validación de reservas, cancelaciones, bloqueos y superposición. Lógica pura, sin red ni reloj. |
 | `netlify/functions/nucleo/permisos.js` | Qué puede hacer cada rol. |
 | `netlify/functions/nucleo/configuracion.js` | Lee las variables `ESPACIAV2_*`; si falta alguna, nombra cuál (nunca el valor) y responde 500. |
-| `pruebas/*.prueba.js` | Una prueba por cada regla de este documento. |
+| `netlify/functions/nucleo/google_calendario.js` | Único módulo que habla con Google Calendar. Traduce eventos ↔ reservas y **lee también los eventos antiguos de Espacia** (titular guardado como email). |
+| `netlify/functions/nucleo/github_usuarios.js` | Único módulo que habla con GitHub. Lee y guarda los usuarios; si otra persona guardó en el medio, **reintenta sin perder su cambio**. Los errores nunca incluyen el token. |
+| `netlify/functions/nucleo/reservas_servicio.js` | Casos de uso: crear reserva, cancelar, crear bloqueos. No habla con Google ni GitHub: recibe el repositorio por parámetro. |
+| `pruebas/*.prueba.js` y `pruebas/ayudas/*` | Una prueba por cada regla de este documento, con Google Calendar y GitHub simulados (nunca tocan datos reales). |
 
 **Hallazgos de la sección 10 ya cubiertos por el diseño:** 1 a 5 (validación en servidor y permisos), 8 (configuración única en `reglas.json`), 12 (los días de la semana se calculan sobre el texto de la fecha, no con la zona del servidor).
-**Pendientes de implementar:** 6 y 7 (usuarios, token del cliente, secreto de sesión), 9 (reserva atómica), 11 (módulo `google_calendario.js`), 13 (disponibilidad por duración completa).
+**También cubiertos ahora:** 9 (después de crear se vuelve a verificar el día; si dos personas reservan a la vez, se queda la que llegó primero y la otra se deshace), 11 (un solo módulo de Google), y el bloqueo múltiple es "todo o nada" (si una creación falla o choca, no queda ninguno).
+**Pendientes de implementar:** 6 y 7 (login, sesión, contraseñas con sal, gestión de usuarios, sin token enviado por el navegador) y las funciones HTTP que exponen todo esto.
 
 ### Supuestos que adopté y que debés confirmar o cambiar
 
@@ -194,5 +198,10 @@ Cada uno vive en un solo lugar del código; cambiarlo es una edición pequeña.
 7. **`ESPACIAV2_MODO`** es obligatorio, sin valor por defecto (`pruebas` o `produccion`). En `pruebas` se usa el calendario de pruebas.
 8. **Secreto de sesión:** sin valor por defecto, mínimo 32 caracteres.
 9. **Zona horaria:** se calcula con `America/Montevideo`; ya no se usa `-03:00` fijo.
+
+10. **Formato del archivo de usuarios de V2:** `{ "version": 1, "usuarios": [ ... ] }`, guardado en el repo `bd` en una ruta propia (por ejemplo `espaciaV2/usuarios.json`), separada del archivo de Espacia.
+11. **Reservas antiguas:** V2 interpreta como reserva todo evento del calendario cuyo título empiece con `C<n>:`. Los colores por consultorio todavía no se asignan; falta definir la tabla.
+
+**Pendiente de decidir:** qué ve un usuario común en la grilla sobre las reservas de otros: solo "ocupado", o también el nombre del titular (hoy en Espacia ve los nombres).
 
 **Pendiente de verificar en Netlify:** a qué hora corre realmente el backup (sección 7), porque de eso depende la regla de que el gestor cierre "ayer" hasta las 02:00.

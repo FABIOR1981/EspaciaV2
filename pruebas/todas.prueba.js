@@ -3,3 +3,6 @@
 require('./reglas_de_negocio.prueba.js');
 require('./permisos.prueba.js');
 require('./configuracion.prueba.js');
+require('./google_calendario.prueba.js');
+require('./github_usuarios.prueba.js');
+require('./reservas_servicio.prueba.js');
