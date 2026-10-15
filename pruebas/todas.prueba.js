@@ -6,3 +6,8 @@ require('./configuracion.prueba.js');
 require('./google_calendario.prueba.js');
 require('./github_usuarios.prueba.js');
 require('./reservas_servicio.prueba.js');
+require('./vistas_reservas.prueba.js');
+require('./contrasenas.prueba.js');
+require('./sesion.prueba.js');
+require('./usuarios_servicio.prueba.js');
+require('./migracion_usuarios.prueba.js');

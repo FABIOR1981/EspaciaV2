@@ -103,4 +103,22 @@ async function actualizarUsuarios(cfg, cambiar, mensaje, { fetchFn = fetch, inte
   throw new ConflictoDeEscritura();
 }
 
-module.exports = { ErrorGitHub, ConflictoDeEscritura, leerUsuarios, guardarUsuarios, actualizarUsuarios };
+/**
+ * Almacén de usuarios con la forma que usa usuarios_servicio.js:
+ *   leer() -> usuarios,   actualizar(cambiar, mensaje) -> usuarios nuevos
+ */
+function crearAlmacenDeUsuarios(cfg, opciones = {}) {
+  return {
+    leer: async () => (await leerUsuarios(cfg, opciones)).usuarios,
+    actualizar: (cambiar, mensaje) => actualizarUsuarios(cfg, cambiar, mensaje, opciones),
+  };
+}
+
+module.exports = {
+  ErrorGitHub,
+  ConflictoDeEscritura,
+  leerUsuarios,
+  guardarUsuarios,
+  actualizarUsuarios,
+  crearAlmacenDeUsuarios,
+};

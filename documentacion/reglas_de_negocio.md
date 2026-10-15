@@ -167,9 +167,9 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 
 ---
 
-## 13. Implementación del backend (v0.3.0)
+## 13. Implementación del backend (v0.4.0)
 
-**Archivos y qué cubren** (117 pruebas automáticas; corren solas en GitHub Actions en cada subida):
+**Archivos y qué cubren** (146 pruebas automáticas; corren solas en GitHub Actions en cada subida):
 
 | Archivo | Contenido |
 |---|---|
@@ -183,12 +183,14 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 | `netlify/functions/nucleo/vistas_reservas.js` | Qué ve cada persona (regla de "Ocupado"). **Es lo único que debe usarse para devolver reservas al navegador.** Incluye "mis reservas" con rango de fechas. |
 | `netlify/functions/nucleo/contrasenas.js` | Contraseñas con scrypt y sal propia por usuario; acepta el SHA-256 antiguo de Espacia una sola vez y pide reemplazarlo; clave temporal aleatoria. |
 | `netlify/functions/nucleo/sesion.js` | Token de sesión firmado (HS256) con vencimiento, sin dependencias. Rechaza `alg: none`, otros algoritmos y firmas alteradas. |
+| `netlify/functions/nucleo/usuarios_servicio.js` | Ingresar, listar, alta, edición, reinicio y cambio de clave. El mensaje de error al ingresar es el mismo si el usuario no existe, está inactivo o la clave es incorrecta (y el tiempo de respuesta tampoco lo distingue). Nunca devuelve el hash. |
+| `netlify/functions/nucleo/migracion_usuarios.js` | Convierte el `usuarios.json` de Espacia al formato de V2. Se niega a migrar si hay repetidos, roles desconocidos o usuarios sin contraseña. |
 | `pruebas/*.prueba.js` y `pruebas/ayudas/*` | Una prueba por cada regla de este documento, con Google Calendar y GitHub simulados (nunca tocan datos reales). |
 
 **Hallazgos de la sección 10 ya cubiertos por el diseño:** 1 a 5 (validación en servidor y permisos), 8 (configuración única en `reglas.json`), 12 (los días de la semana se calculan sobre el texto de la fecha, no con la zona del servidor).
 **También cubiertos ahora:** 9 (después de crear se vuelve a verificar el día; si dos personas reservan a la vez, se queda la que llegó primero y la otra se deshace), 11 (un solo módulo de Google), y el bloqueo múltiple es "todo o nada" (si una creación falla o choca, no queda ninguno).
 **Hallazgos 6 y 7 en proceso:** contraseñas con sal y sesión firmada ya están hechas; el secreto de sesión no tiene valor por defecto (sección 13, supuesto 8) y el token de GitHub nunca viene del navegador.
-**Pendientes de implementar:** el servicio de gestión de usuarios (alta, edición, baja, cambio de clave, reinicio), el script de migración desde el `usuarios.json` de Espacia, y las funciones HTTP que exponen todo esto (login, reservas, cancelaciones, bloqueos, usuarios).
+**Pendientes de implementar:** las funciones HTTP que exponen todo esto (ingreso, reservas, cancelaciones, bloqueos, usuarios) y la pantalla.
 
 ### Supuestos que adopté y que debés confirmar o cambiar
 
@@ -210,6 +212,16 @@ Cada uno vive en un solo lugar del código; cambiarlo es una edición pequeña.
 12. **Claves:** mínimo 8 y máximo 128 caracteres, sin otras exigencias. El navegador envía la clave por HTTPS tal cual (ya no el hash) y el servidor calcula el hash con sal.
 13. **Migración de claves:** el hash antiguo de Espacia se acepta una sola vez; al primer ingreso correcto se reemplaza por el nuevo. Los usuarios que siguen con la clave inicial (`nomUsu` + `1234567`) deberían quedar marcados con `requiereCambioPass` en el script de migración.
 14. **Bloqueos en la grilla de usuarios:** aparecen como "Ocupado", igual que una reserva ajena.
+
+15. **Identificadores de usuario:** solo letras y números, de 3 a 20 caracteres, sin espacios (todos los usuarios actuales cumplen: 4 a 10). El alta no permite repetirlos sin distinguir mayúsculas.
+16. **Nadie puede desactivarse ni cambiarse el rol a sí mismo.** Además impide dejar el sistema sin administradores. El gestor no puede modificar, reiniciar ni crear gestores o administradores.
+17. **Edición de usuarios:** solo se pueden cambiar nombre, rol, preferencias de consultorio y estado activo. Cualquier otro campo enviado (por ejemplo la contraseña) se ignora.
+18. **Clave temporal:** se muestra una sola vez al crear o reiniciar, no se guarda en ningún lado, y obliga a cambiarla en el primer ingreso.
+19. **Migración realizada con tu archivo real:** 58 usuarios (54 `usuario`, 2 `gestor`, 2 `admin`; 56 activos). 45 quedan con `requiereCambioPass = true`: los 44 que seguían con la clave inicial más 1 que ya estaba marcado.
+
+**Pendientes de definir en la capa HTTP:**
+- Que el token de una cuenta con `requiereCambioPass` **solo sirva para cambiar la clave** (hay que reforzarlo en el servidor, igual que las demás reglas).
+- Protección contra intentos de adivinar claves (límite de intentos por usuario o por origen). Las funciones de Netlify no guardan estado; las opciones son aprovechar el costo del hash (unos 50 ms por intento) más un límite de peticiones de Netlify, o registrar los intentos fallidos en otro lugar.
 
 **Pendiente de decidir:** si un usuario desactivado o con el rol cambiado pierde la sesión **de inmediato** (el servidor consulta el archivo de usuarios en cada petición) o **al vencer el token** (4 h para usuario, 12 h para admin y gestor). Lo primero es más seguro; lo segundo es más rápido y barato.
 

@@ -99,3 +99,11 @@ test('actualizarUsuarios: se rinde tras varios conflictos seguidos', async () =>
     (e) => e instanceof gh.ConflictoDeEscritura
   );
 });
+
+test('almacén sobre GitHub: leer y actualizar con la forma que usa el servicio de usuarios', async () => {
+  const { estado, fetchSimulado } = crearGitHubSimulado({ usuarios: [ana] });
+  const almacen = gh.crearAlmacenDeUsuarios(CFG, { fetchFn: fetchSimulado });
+  assert.deepEqual(await almacen.leer(), [ana]);
+  await almacen.actualizar((lista) => [...lista, luis], 'Alta de Luis');
+  assert.deepEqual(estado.contenido.usuarios, [ana, luis]);
+});

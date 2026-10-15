@@ -126,21 +126,40 @@ function crearRepositorioDeReservas(calendario, configGoogle, opciones) {
   const { zonaHoraria, notificarInvitados } = opciones;
   const calendarId = configGoogle.calendarioId;
 
-  /** Todas las reservas (activas y canceladas) de un día local 'AAAA-MM-DD'. */
-  async function listarDia(fecha) {
+  /**
+   * Todas las reservas (activas y canceladas) entre dos días locales 'AAAA-MM-DD', ambos inclusive.
+   * Recorre todas las páginas de resultados de Google.
+   */
+  async function listarRango(fechaDesde, fechaHasta) {
     // Ventana amplia en UTC; después se filtra por el día local. No depende de la zona horaria.
-    const base = Date.parse(`${fecha}T00:00:00Z`);
-    const respuesta = await calendario.events.list({
-      calendarId,
-      timeMin: new Date(base - 24 * 3600 * 1000).toISOString(),
-      timeMax: new Date(base + 48 * 3600 * 1000).toISOString(),
-      singleEvents: true,
-      orderBy: 'startTime',
-      maxResults: 500,
-    });
-    return (respuesta.data.items || [])
-      .map((e) => eventoAReserva(e, zonaHoraria))
-      .filter((r) => r && r.fecha === fecha);
+    const dia = 24 * 3600 * 1000;
+    const timeMin = new Date(Date.parse(`${fechaDesde}T00:00:00Z`) - dia).toISOString();
+    const timeMax = new Date(Date.parse(`${fechaHasta}T00:00:00Z`) + 2 * dia).toISOString();
+
+    const reservas = [];
+    let pageToken;
+    do {
+      const respuesta = await calendario.events.list({
+        calendarId,
+        timeMin,
+        timeMax,
+        singleEvents: true,
+        orderBy: 'startTime',
+        maxResults: 500,
+        pageToken,
+      });
+      for (const evento of respuesta.data.items || []) {
+        const reserva = eventoAReserva(evento, zonaHoraria);
+        if (reserva && reserva.fecha >= fechaDesde && reserva.fecha <= fechaHasta) reservas.push(reserva);
+      }
+      pageToken = respuesta.data.nextPageToken;
+    } while (pageToken);
+    return reservas;
+  }
+
+  /** Todas las reservas (activas y canceladas) de un día local 'AAAA-MM-DD'. */
+  function listarDia(fecha) {
+    return listarRango(fecha, fecha);
   }
 
   async function obtener(id) {
@@ -187,7 +206,7 @@ function crearRepositorioDeReservas(calendario, configGoogle, opciones) {
     await calendario.events.delete({ calendarId, eventId: id, sendUpdates: 'none' });
   }
 
-  return { listarDia, obtener, crear, cancelar, eliminar };
+  return { listarDia, listarRango, obtener, crear, cancelar, eliminar };
 }
 
 module.exports = {

@@ -163,3 +163,21 @@ test('obtener: devuelve null si no existe; eliminar borra el evento', async () =
   await repo.eliminar(creada.id);
   assert.equal(cal.eventos.size, 0);
 });
+
+test('listarRango: devuelve las reservas de varios días y recorre todas las páginas de Google', async () => {
+  const { cal, repo } = nuevoRepo();
+  await repo.crear(reservaBase({ fecha: '2026-10-16' }));
+  await repo.crear(reservaBase({ fecha: '2026-10-19', consultorio: 3 }));
+  await repo.crear(reservaBase({ fecha: '2026-11-30', consultorio: 4 })); // fuera del rango
+
+  // Google entrega los resultados en dos páginas.
+  const listaOriginal = cal.events.list;
+  cal.events.list = async (args) => {
+    const todos = (await listaOriginal(args)).data.items;
+    if (!args.pageToken) return { data: { items: todos.slice(0, 1), nextPageToken: 'pagina2' } };
+    return { data: { items: todos.slice(1) } };
+  };
+
+  const rango = await repo.listarRango('2026-10-15', '2026-10-31');
+  assert.deepEqual(rango.map((r) => r.fecha).sort(), ['2026-10-16', '2026-10-19']);
+});
