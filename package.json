@@ -1,0 +1,12 @@
+{
+  "name": "espaciav2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EspaciaV2: reservas de consultorios (refactorización de Espacia)",
+  "scripts": {
+    "test": "node --test pruebas/todas.prueba.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

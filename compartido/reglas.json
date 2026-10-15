@@ -1,0 +1,31 @@
+{
+  "zonaHoraria": "America/Montevideo",
+  "espacios": {
+    "cantidad": 5,
+    "etiqueta": "Consultorio",
+    "prefijo": "C"
+  },
+  "diasLaborales": [1, 2, 3, 4, 5, 6],
+  "horario": { "inicio": "08:00", "fin": "22:00" },
+  "horariosEspeciales": {
+    "6": { "inicio": "08:00", "fin": "16:00" }
+  },
+  "tramoMinutos": 30,
+  "duracionesMinutos": [60, 90],
+  "reserva": {
+    "maxSemanasAdelante": 12,
+    "gestorPuedeCerrarAyerHasta": "02:00"
+  },
+  "cancelacion": {
+    "horasAntelacion": 24,
+    "reglaFinDeSemana": false,
+    "horasExtraLunes": 48
+  },
+  "sesion": {
+    "duracionUsuario": "4h",
+    "duracionAdministrativo": "12h"
+  },
+  "contacto": {
+    "telefonoSecretaria": "091 001 334"
+  }
+}

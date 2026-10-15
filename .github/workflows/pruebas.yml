@@ -1,0 +1,22 @@
+name: Pruebas
+
+# Corre las pruebas automáticas cada vez que se sube código al repositorio.
+# No requiere instalar nada: GitHub las ejecuta en sus servidores.
+on:
+  push:
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Correr las pruebas
+        run: npm test

@@ -1,16 +1,17 @@
 # Reglas de negocio de Espacia (base para EspaciaV2)
 
-**Origen:** código de Espacia v4.9.17 (`netlify/functions/*`, `js/config*.js`, `js/agenda*`, `js/bloqueos.js`).
-**Estado:** borrador con las primeras decisiones de Fabio incorporadas (ver sección 12). Lo marcado con ❓ necesita tu decisión: ¿es intencional o es un error heredado?
+**Origen:** código de Espacia v4.9.17 (`netlify/functions/*`, `js/config*.js`, `js/agenda*`, `js/bloqueos.js`) y el `usuarios.json` de producción.
+**Estado:** borrador con las decisiones de Fabio (sección 12) y la primera implementación del backend (sección 13).
+Lo marcado con ❓ necesita confirmación: ¿es intencional o es un error heredado?
 **Pendiente de contrastar:** `documentacion/manual_*.md`, `informe_*.js`, `reservas_futuras.js`, `agenda_detalle.js` y `abm_usuario.js` (no leídos a fondo todavía).
 
-Cada regla indica **dónde se aplica hoy**: `[Front]` = solo en el navegador (se puede saltear), `[Servidor]` = en la función de Netlify.
+Cada regla indica **dónde se aplica en Espacia hoy**: `[Front]` = solo en el navegador (se puede saltear), `[Servidor]` = en la función de Netlify.
 
 ---
 
 ## 1. Roles y permisos
 
-| Acción | usuario | gestor | admin | Dónde |
+| Acción | usuario | gestor | admin | Dónde (Espacia hoy) |
 |---|---|---|---|---|
 | Iniciar sesión | sí | sí | sí | Servidor |
 | Reservar a su nombre | sí | sí | sí | Servidor |
@@ -38,9 +39,9 @@ Notas:
 - La grilla se dibuja en tramos de **30 minutos**.
 - Una opción de duración solo se ofrece si **termina antes del cierre**. Excepción: admin/gestor pueden pasarse del cierre (`restriccionCierreSoloUsuarios`).
 - Los usuarios con preferencia de consultorios (`consPref`) ven primero sus consultorios preferidos.
-- Zona horaria: **America/Montevideo** (el código fija `-03:00` a mano al armar las fechas).
+- Zona horaria: **America/Montevideo** (Espacia fija `-03:00` a mano al armar las fechas).
 
-Dónde se valida: días laborales, horario de cierre, duraciones y rango de consultorios se validan **solo en el Front**. ❓ El servidor acepta cualquier hora, duración o consultorio.
+En Espacia, días laborales, horario de cierre, duraciones y rango de consultorios se validan **solo en el Front**. ❓ El servidor acepta cualquier hora, duración o consultorio.
 
 ## 3. Crear una reserva
 
@@ -66,7 +67,7 @@ Dónde se valida: días laborales, horario de cierre, duraciones y rango de cons
 ## 5. Bloqueos de horarios (solo admin/gestor)
 
 - Se elige día, rango horario o "día completo", y uno o varios consultorios (o "Todos").
-- "Día completo" bloquea de **08:00 a 21:00** fijo. ❓ No respeta el horario especial del sábado (16:00) ni el cierre de las 22:00.
+- En Espacia, "día completo" bloquea de **08:00 a 21:00** fijo. ❓ No respeta el horario especial del sábado (16:00) ni el cierre de las 22:00.
 - Un bloqueo es una reserva común con nombre `Bloqueada`, color rojo para el total (`11`) y observación opcional: título `C<n>: Bloqueada-<observación>`.
 - Si se marcan **todos** los consultorios se crea **un solo evento `C0`**; si no, **un evento por consultorio**, con una llamada separada para cada uno (si una falla, los demás quedan creados).
 - ❓ Como la verificación de disponibilidad compara por prefijo (`C1:`, `C2:`…), un bloqueo `C0` **no impide en el servidor** reservar en C1–C5; solo lo evitaría la grilla del Front (por verificar).
@@ -87,18 +88,19 @@ Dónde se valida: días laborales, horario de cierre, duraciones y rango de cons
 
 ## 8. Usuarios y sesión
 
-- Campos conocidos: `tipdocu` (PROF o SIS), `documento`, `nomUsu`, `nombre`, `email`, `rol`, `activo`, `contrasena` (hash), `consPref`.
-- **Dominio de email por defecto:** `@espacia.com.uy`.
+- Campos en el `usuarios.json` de producción (58 usuarios: 54 `usuario`, 2 `gestor`, 2 `admin`): `nombre`, `nomUsu`, `email`, `tipdocu`, `documento`, `rol`, `consPref`, `activo`, `requiereCambioPass`, `contrasena`.
+- El `email` es siempre `nomUsu` en minúsculas + `@espacia.com.uy` (57 de 58; solo `Admin` lo tiene con mayúscula inicial). `documento` y `tipdocu` son números consecutivos sin significado, usados solo como clave del registro (`PROF-38`).
 - Solo pueden iniciar sesión usuarios con `activo = true`.
 - Login: el **navegador calcula SHA-256** de la clave y el servidor compara ese hash con el guardado. ❓ El hash se comporta como la contraseña misma y no tiene sal.
+- Un usuario nuevo recibe la clave inicial `nomUsu` + `1234567` y `requiereCambioPass = true`. En el archivo analizado, **44 de los 56 usuarios activos siguen con la clave inicial**, incluida una cuenta admin.
 - Sesión por JWT con `tipdocu, documento, email, rol, nombre, nomUsu`.
 - Cada usuario puede cambiar su clave. Admin y gestor administran usuarios (alta, edición, baja lógica con `activo`).
-- Al guardar usuarios: `nomUsu` y `nombre` son obligatorios, el `nomUsu` no puede repetirse (sin distinguir mayúsculas); el email es opcional.
+- Al guardar usuarios: `nomUsu` y `nombre` son obligatorios y el `nomUsu` no puede repetirse (sin distinguir mayúsculas).
 
 ## 9. PWA y versiones
 
 - La app es una PWA: `sw.js` con `CACHE_NAME = 'espacia-cache-vX.X.X'`.
-- Se debe mantener la **misma versión en tres lugares**: `package.json`, `js/config_particular.js` (`APP_VERSION`) y `sw.js`. ❓ Conviene que en V2 salga de **un solo lugar**.
+- En Espacia se debe mantener la **misma versión en tres lugares**: `package.json`, `js/config_particular.js` (`APP_VERSION`) y `sw.js`. ❓ Conviene que en V2 salga de **un solo lugar**.
 
 ---
 
@@ -106,7 +108,7 @@ Dónde se valida: días laborales, horario de cierre, duraciones y rango de cons
 
 **Seguridad**
 
-1. ❓ **Reglas solo en el navegador.** Días laborales, horario, duraciones, rango de consultorios y permiso de bloquear no se validan en el servidor. Quien llame a la función directamente puede saltarlas.
+1. ❓ **Reglas solo en el navegador.** Días laborales, horario, duraciones, rango de consultorios y permiso de bloquear no se validan en el servidor. Quien llame a la función directamente puede saltearlas.
 2. ❓ **Un usuario puede reservar a nombre de otro**: el servidor toma el `email` del cuerpo de la petición y no lo compara con el de la sesión.
 3. ❓ **`GET reservar?all=1` devuelve todas las reservas (nombres y emails) a cualquier usuario con sesión.** Existe `ADMIN_EMAIL` pero no se usa para controlarlo.
 4. ❓ **`GET reservar?email=…`** permite consultar las reservas de cualquier otra persona.
@@ -128,11 +130,11 @@ Dónde se valida: días laborales, horario de cierre, duraciones y rango de cons
 
 ---
 
-## 11. Propuesta para EspaciaV2 (para discutir)
+## 11. Propuesta para EspaciaV2
 
 - Todas las reglas de este documento se validan **en el servidor**; el Front solo las usa para mostrar mejor (ocultar opciones).
-- Una sola fuente de configuración, leída por Front y servidor (un `reglas.json` o equivalente), para no repetir el problema del punto 8.
-- Un módulo único de Google Calendar y un único módulo de permisos (`puedeReservarPara`, `puedeCancelar`, `puedeBloquear`).
+- Una sola fuente de configuración, leída por Front y servidor (`compartido/reglas.json`).
+- Un módulo único de Google Calendar y un único módulo de permisos.
 - Pruebas automáticas de cada regla de este documento, con un Google Calendar simulado.
 
 ---
@@ -155,9 +157,42 @@ Dónde se valida: días laborales, horario de cierre, duraciones y rango de cons
 ```
 
    - La clave del registro y de las reservas pasa a ser el `id` (el `nomUsu` actual).
-   - Para leer reservas antiguas de Google Calendar, el `id` se reconstruye desde el email guardado en el evento: `id = parte antes de la @`, comparando sin distinguir mayúsculas (en el `usuarios.json` actual el email es siempre `nomUsu` en minúsculas + `@espacia.com.uy`).
+   - Para leer reservas antiguas de Google Calendar, el `id` se reconstruye desde el email guardado en el evento: `id = parte antes de la @`, comparando sin distinguir mayúsculas.
    - Que dos usuarios elijan la misma contraseña es aceptable. El hash con sal protege ante una filtración del archivo, no obliga a que las contraseñas sean distintas.
 3. **Migración:** un script de una sola vez convierte el `usuarios.json` actual. El login de V2 acepta el hash viejo una sola vez y lo reemplaza por el nuevo con sal.
 4. **Clave inicial:** en V2 es aleatoria, con cambio obligatorio en el primer ingreso (`requiereCambioPass`).
+5. **Convención de nombres:** los archivos que hablan con Google llevan `google_` delante y los que hablan con GitHub llevan `github_`. Solo esos pueden usar la red; el resto es lógica pura. Las variables de Netlify siguen `ESPACIAV2_<SERVICIO>_<DATO>` (por ejemplo `ESPACIAV2_GOOGLE_CALENDARIO_ID`, `ESPACIAV2_GITHUB_TOKEN`).
+6. **Mismo repo `bd` y mismo Google Calendar que producción**, pero durante el desarrollo `ESPACIAV2_MODO=pruebas` usa un calendario de pruebas aparte.
 
-**Pendientes de decisión:** fuente única de configuración, bloqueo de día completo según horario real, comportamiento del bloqueo `C0`, horario real del backup, diferencias entre gestor y admin.
+---
+
+## 13. Implementación inicial del backend (v0.1.0)
+
+**Archivos y qué cubren** (48 pruebas automáticas, todas pasan con `npm test`):
+
+| Archivo | Contenido |
+|---|---|
+| `compartido/reglas.json` | Fuente única de reglas: horarios, días, duraciones, antelaciones, sesión. La leen servidor y (más adelante) navegador. |
+| `netlify/functions/nucleo/reglas_de_negocio.js` | Validación de reservas, cancelaciones, bloqueos y superposición. Lógica pura, sin red ni reloj. |
+| `netlify/functions/nucleo/permisos.js` | Qué puede hacer cada rol. |
+| `netlify/functions/nucleo/configuracion.js` | Lee las variables `ESPACIAV2_*`; si falta alguna, nombra cuál (nunca el valor) y responde 500. |
+| `pruebas/*.prueba.js` | Una prueba por cada regla de este documento. |
+
+**Hallazgos de la sección 10 ya cubiertos por el diseño:** 1 a 5 (validación en servidor y permisos), 8 (configuración única en `reglas.json`), 12 (los días de la semana se calculan sobre el texto de la fecha, no con la zona del servidor).
+**Pendientes de implementar:** 6 y 7 (usuarios, token del cliente, secreto de sesión), 9 (reserva atómica), 11 (módulo `google_calendario.js`), 13 (disponibilidad por duración completa).
+
+### Supuestos que adopté y que debés confirmar o cambiar
+
+Cada uno vive en un solo lugar del código; cambiarlo es una edición pequeña.
+
+1. **Bloqueo de "día completo"** usa el horario real de ese día (sábados hasta las 16:00, resto hasta las 22:00), no el 08:00–21:00 fijo de Espacia. → `validarBloqueo`
+2. **Bloqueo `C0` ("todos")** choca con cualquier consultorio, y pedir "todos" choca con cualquier evento del día. → `haySuperposicion`
+3. **Admin y gestor** pueden pasarse del cierre, pero nunca más allá de la medianoche. La hora de inicio dentro del horario, los tramos de 30 minutos y las duraciones de 60/90 minutos se exigen a **todos** los roles.
+4. **El gestor** solo puede crear o editar usuarios con rol `usuario`; no toca gestores ni administradores. → `puedeAsignarRol`
+5. **Cancelar:** primero se comprueba que sea el titular (403) y después el plazo, para no revelar la política a quien no es dueño.
+6. **Los bloqueos** siguen las mismas reglas de fecha que las reservas: el gestor no bloquea el pasado, salvo "ayer" antes de las 02:00.
+7. **`ESPACIAV2_MODO`** es obligatorio, sin valor por defecto (`pruebas` o `produccion`). En `pruebas` se usa el calendario de pruebas.
+8. **Secreto de sesión:** sin valor por defecto, mínimo 32 caracteres.
+9. **Zona horaria:** se calcula con `America/Montevideo`; ya no se usa `-03:00` fijo.
+
+**Pendiente de verificar en Netlify:** a qué hora corre realmente el backup (sección 7), porque de eso depende la regla de que el gestor cierre "ayer" hasta las 02:00.
