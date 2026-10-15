@@ -162,13 +162,14 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 3. **Migración:** un script de una sola vez convierte el `usuarios.json` actual. El login de V2 acepta el hash viejo una sola vez y lo reemplaza por el nuevo con sal.
 4. **Clave inicial:** en V2 es aleatoria, con cambio obligatorio en el primer ingreso (`requiereCambioPass`).
 5. **Convención de nombres:** los archivos que hablan con Google llevan `google_` delante y los que hablan con GitHub llevan `github_`. Solo esos pueden usar la red; el resto es lógica pura. Las variables de Netlify siguen `ESPACIAV2_<SERVICIO>_<DATO>` (por ejemplo `ESPACIAV2_GOOGLE_CALENDARIO_ID`, `ESPACIAV2_GITHUB_TOKEN`).
-6. **Mismo repo `bd` y mismo Google Calendar que producción**, pero durante el desarrollo `ESPACIAV2_MODO=pruebas` usa un calendario de pruebas aparte.
+6. **Visibilidad en la grilla:** un usuario común ve sus propias reservas completas y, cuando la reserva es de otra persona o es un bloqueo, solo ve **"Ocupado"** (sin nombre, sin observación, sin identificador). Admin y gestor ven todo el detalle. Las reservas canceladas no aparecen en la grilla; solo admin y gestor pueden pedirlas (informes). Un usuario solo puede pedir sus propias reservas; admin y gestor pueden pedir las de otra persona.
+7. **Mismo repo `bd` y mismo Google Calendar que producción**, pero durante el desarrollo `ESPACIAV2_MODO=pruebas` usa un calendario de pruebas aparte.
 
 ---
 
-## 13. Implementación del backend (v0.2.0)
+## 13. Implementación del backend (v0.3.0)
 
-**Archivos y qué cubren** (90 pruebas automáticas; corren solas en GitHub Actions en cada subida):
+**Archivos y qué cubren** (117 pruebas automáticas; corren solas en GitHub Actions en cada subida):
 
 | Archivo | Contenido |
 |---|---|
@@ -179,11 +180,15 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 | `netlify/functions/nucleo/google_calendario.js` | Único módulo que habla con Google Calendar. Traduce eventos ↔ reservas y **lee también los eventos antiguos de Espacia** (titular guardado como email). |
 | `netlify/functions/nucleo/github_usuarios.js` | Único módulo que habla con GitHub. Lee y guarda los usuarios; si otra persona guardó en el medio, **reintenta sin perder su cambio**. Los errores nunca incluyen el token. |
 | `netlify/functions/nucleo/reservas_servicio.js` | Casos de uso: crear reserva, cancelar, crear bloqueos. No habla con Google ni GitHub: recibe el repositorio por parámetro. |
+| `netlify/functions/nucleo/vistas_reservas.js` | Qué ve cada persona (regla de "Ocupado"). **Es lo único que debe usarse para devolver reservas al navegador.** Incluye "mis reservas" con rango de fechas. |
+| `netlify/functions/nucleo/contrasenas.js` | Contraseñas con scrypt y sal propia por usuario; acepta el SHA-256 antiguo de Espacia una sola vez y pide reemplazarlo; clave temporal aleatoria. |
+| `netlify/functions/nucleo/sesion.js` | Token de sesión firmado (HS256) con vencimiento, sin dependencias. Rechaza `alg: none`, otros algoritmos y firmas alteradas. |
 | `pruebas/*.prueba.js` y `pruebas/ayudas/*` | Una prueba por cada regla de este documento, con Google Calendar y GitHub simulados (nunca tocan datos reales). |
 
 **Hallazgos de la sección 10 ya cubiertos por el diseño:** 1 a 5 (validación en servidor y permisos), 8 (configuración única en `reglas.json`), 12 (los días de la semana se calculan sobre el texto de la fecha, no con la zona del servidor).
 **También cubiertos ahora:** 9 (después de crear se vuelve a verificar el día; si dos personas reservan a la vez, se queda la que llegó primero y la otra se deshace), 11 (un solo módulo de Google), y el bloqueo múltiple es "todo o nada" (si una creación falla o choca, no queda ninguno).
-**Pendientes de implementar:** 6 y 7 (login, sesión, contraseñas con sal, gestión de usuarios, sin token enviado por el navegador) y las funciones HTTP que exponen todo esto.
+**Hallazgos 6 y 7 en proceso:** contraseñas con sal y sesión firmada ya están hechas; el secreto de sesión no tiene valor por defecto (sección 13, supuesto 8) y el token de GitHub nunca viene del navegador.
+**Pendientes de implementar:** el servicio de gestión de usuarios (alta, edición, baja, cambio de clave, reinicio), el script de migración desde el `usuarios.json` de Espacia, y las funciones HTTP que exponen todo esto (login, reservas, cancelaciones, bloqueos, usuarios).
 
 ### Supuestos que adopté y que debés confirmar o cambiar
 
@@ -202,6 +207,10 @@ Cada uno vive en un solo lugar del código; cambiarlo es una edición pequeña.
 10. **Formato del archivo de usuarios de V2:** `{ "version": 1, "usuarios": [ ... ] }`, guardado en el repo `bd` en una ruta propia (por ejemplo `espaciaV2/usuarios.json`), separada del archivo de Espacia.
 11. **Reservas antiguas:** V2 interpreta como reserva todo evento del calendario cuyo título empiece con `C<n>:`. Los colores por consultorio todavía no se asignan; falta definir la tabla.
 
-**Pendiente de decidir:** qué ve un usuario común en la grilla sobre las reservas de otros: solo "ocupado", o también el nombre del titular (hoy en Espacia ve los nombres).
+12. **Claves:** mínimo 8 y máximo 128 caracteres, sin otras exigencias. El navegador envía la clave por HTTPS tal cual (ya no el hash) y el servidor calcula el hash con sal.
+13. **Migración de claves:** el hash antiguo de Espacia se acepta una sola vez; al primer ingreso correcto se reemplaza por el nuevo. Los usuarios que siguen con la clave inicial (`nomUsu` + `1234567`) deberían quedar marcados con `requiereCambioPass` en el script de migración.
+14. **Bloqueos en la grilla de usuarios:** aparecen como "Ocupado", igual que una reserva ajena.
+
+**Pendiente de decidir:** si un usuario desactivado o con el rol cambiado pierde la sesión **de inmediato** (el servidor consulta el archivo de usuarios en cada petición) o **al vencer el token** (4 h para usuario, 12 h para admin y gestor). Lo primero es más seguro; lo segundo es más rápido y barato.
 
 **Pendiente de verificar en Netlify:** a qué hora corre realmente el backup (sección 7), porque de eso depende la regla de que el gestor cierre "ayer" hasta las 02:00.

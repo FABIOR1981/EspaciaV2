@@ -1,6 +1,6 @@
 {
   "name": "espaciav2",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "EspaciaV2: reservas de consultorios (refactorización de Espacia)",
   "scripts": {
