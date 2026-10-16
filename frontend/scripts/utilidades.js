@@ -23,6 +23,11 @@ export function el(etiqueta, atributos = {}, ...hijos) {
   return nodo;
 }
 
+/** Reemplaza el contenido de un nodo ignorando los valores vacíos (replaceChildren escribiría "null" como texto). */
+export function reemplazarHijos(nodo, ...hijos) {
+  nodo.replaceChildren(...hijos.flat().filter((h) => h !== null && h !== undefined && h !== false));
+}
+
 const ICONOS = {
   anterior: '<path d="M15 5l-7 7 7 7"/>',
   siguiente: '<path d="M9 5l7 7-7 7"/>',
