@@ -1,6 +1,6 @@
 // Ventanas para reservar un horario y para ver o cancelar una reserva.
 
-import { el, rangoHoras, minutosAHora, fechaLarga, nombreSala, colorSala, horarioDelDia } from './utilidades.js';
+import { el, reemplazarHijos, rangoHoras, minutosAHora, fechaLarga, nombreSala, colorSala, horarioDelDia } from './utilidades.js';
 import { abrirHoja, mostrarAviso } from './hojas.js';
 
 const esAdministrativo = (rol) => rol === 'admin' || rol === 'gestor';
@@ -145,7 +145,8 @@ export function abrirHojaDetalle({ reglas, sesion, api, reserva, alCancelada }) 
   if (esBloqueo && reserva.observacion) filas.push(el('dt', {}, 'Motivo'), el('dd', {}, reserva.observacion));
 
   const mostrarBoton = () => {
-    zonaAccion.replaceChildren(
+    reemplazarHijos(
+      zonaAccion,
       el(
         'div',
         { clase: 'hoja-acciones' },
@@ -173,7 +174,8 @@ export function abrirHojaDetalle({ reglas, sesion, api, reserva, alCancelada }) 
       mensaje.hidden = false;
       mostrarBoton();
     });
-    zonaAccion.replaceChildren(
+    reemplazarHijos(
+      zonaAccion,
       el(
         'div',
         { clase: 'confirmacion' },
