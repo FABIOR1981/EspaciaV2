@@ -105,4 +105,21 @@ async function listarReservasDe({ repo, sesion, usuarioId, desde, hasta }) {
   return { ok: true, reservas: reservas.map((r) => reservaParaSesion(r, sesion)) };
 }
 
-module.exports = { reservaParaSesion, reservasParaSesion, listarDiaParaSesion, listarReservasDe };
+/**
+ * Bloqueos vigentes entre dos fechas (solo admin y gestor), ordenados por fecha y hora.
+ */
+async function listarBloqueos({ repo, sesion, desde, hasta }) {
+  if (!esRolValido(sesion.rol)) return error('ROL_INVALIDO', 'Rol no reconocido.', 403);
+  if (!esAdministrativo(sesion.rol)) return error('NO_PUEDE_BLOQUEAR', 'No tiene permiso para ver los bloqueos.', 403);
+  if (!fechaValida(desde) || !fechaValida(hasta)) return error('FECHA_INVALIDA', 'Las fechas no son válidas.');
+  const dias = (Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86400000;
+  if (dias < 0) return error('RANGO_INVALIDO', 'La fecha inicial debe ser anterior a la final.');
+  if (dias > DIAS_MAXIMOS_DE_RANGO) return error('RANGO_DEMASIADO_GRANDE', 'El rango pedido es demasiado largo.');
+
+  const bloqueos = (await repo.listarRango(desde, hasta))
+    .filter((r) => r.tipo === 'bloqueo' && !r.cancelada)
+    .sort((a, b) => (a.fecha === b.fecha ? a.inicioMin - b.inicioMin || a.consultorio - b.consultorio : a.fecha < b.fecha ? -1 : 1));
+  return { ok: true, reservas: bloqueos.map((r) => vistaCompleta(r)) };
+}
+
+module.exports = { reservaParaSesion, reservasParaSesion, listarDiaParaSesion, listarReservasDe, listarBloqueos };

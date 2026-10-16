@@ -7,6 +7,7 @@ import { abrirHoja, mostrarAviso } from './hojas.js';
 import { crearPantallaIngreso, crearPantallaCambioObligatorio, crearFormularioClave, crearMarca } from './vista_ingreso.js';
 import { crearVistaAgenda } from './vista_agenda.js';
 import { crearVistaMisReservas } from './vista_mis_reservas.js';
+import { crearVistaGestion } from './vista_gestion.js';
 
 const raiz = document.getElementById('app');
 
@@ -115,6 +116,10 @@ function entrarALaApp() {
   const inferiorAgenda = el('a', { href: '#agenda' }, icono('agenda'), 'Agenda');
   const inferiorMis = el('a', { href: '#mis-reservas' }, icono('lista'), 'Mis reservas');
 
+  const administrativo = sesion.rol === 'admin' || sesion.rol === 'gestor';
+  const enlaceGestion = administrativo ? el('a', { href: '#gestion' }, 'Gestión') : null;
+  const inferiorGestion = administrativo ? el('a', { href: '#gestion' }, icono('gestion'), 'Gestión') : null;
+
   const botonCuenta = el(
     'button',
     { clase: 'cuenta-boton', type: 'button', 'aria-label': `Mi cuenta: ${sesion.nombre}`, enClick: abrirCuenta },
@@ -122,24 +127,27 @@ function entrarALaApp() {
     el('span', { clase: 'nombre' }, sesion.nombre)
   );
 
-  const barra = el('header', { clase: 'barra' }, crearMarca(), el('nav', { clase: 'nav-principal', 'aria-label': 'Principal' }, enlaceAgenda, enlaceMisReservas), botonCuenta);
-  const navInferior = el('nav', { clase: 'nav-inferior', 'aria-label': 'Principal' }, inferiorAgenda, inferiorMis);
+  const barra = el('header', { clase: 'barra' }, crearMarca(), el('nav', { clase: 'nav-principal', 'aria-label': 'Principal' }, enlaceAgenda, enlaceMisReservas, enlaceGestion), botonCuenta);
+  const navInferior = el('nav', { clase: 'nav-inferior', 'aria-label': 'Principal' }, inferiorAgenda, inferiorMis, inferiorGestion);
   raiz.replaceChildren(barra, principal, navInferior);
 
   const vistas = {
     agenda: crearVistaAgenda({ api, reglas, sesion }),
     'mis-reservas': crearVistaMisReservas({ api, reglas, sesion, irAAgenda: () => { location.hash = '#agenda'; } }),
+    ...(administrativo ? { gestion: crearVistaGestion({ api, reglas, sesion }) } : {}),
   };
   let activa = null;
 
   const mostrar = () => {
-    const nombre = location.hash === '#mis-reservas' ? 'mis-reservas' : 'agenda';
+    const pedida = location.hash.slice(1);
+    const nombre = vistas[pedida] ? pedida : 'agenda';
     if (activa === nombre) return;
     if (activa) vistas[activa].desactivar();
     activa = nombre;
     principal.replaceChildren(vistas[nombre].nodo);
     vistas[nombre].activar();
-    for (const [enlace, objetivo] of [[enlaceAgenda, 'agenda'], [inferiorAgenda, 'agenda'], [enlaceMisReservas, 'mis-reservas'], [inferiorMis, 'mis-reservas']]) {
+    for (const [enlace, objetivo] of [[enlaceAgenda, 'agenda'], [inferiorAgenda, 'agenda'], [enlaceMisReservas, 'mis-reservas'], [inferiorMis, 'mis-reservas'], [enlaceGestion, 'gestion'], [inferiorGestion, 'gestion']]) {
+      if (!enlace) continue;
       if (objetivo === nombre) enlace.setAttribute('aria-current', 'page');
       else enlace.removeAttribute('aria-current');
     }

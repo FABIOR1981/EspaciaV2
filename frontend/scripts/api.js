@@ -43,5 +43,10 @@ export function crearApi({ obtenerToken, alSesionInvalida, alDebeCambiarClave })
     reservar: (datos) => pedir('/reservas', { metodo: 'POST', cuerpo: datos }),
     cancelar: (id) => pedir(`/reservas?id=${q(id)}`, { metodo: 'DELETE' }),
     usuarios: () => pedir('/usuarios'),
+    crearUsuario: (datos) => pedir('/usuarios', { metodo: 'POST', cuerpo: datos }),
+    editarUsuario: (id, cambios) => pedir(`/usuarios?id=${q(id)}`, { metodo: 'PATCH', cuerpo: cambios }),
+    reiniciarClave: (id) => pedir(`/usuarios?id=${q(id)}&accion=reiniciar-clave`, { metodo: 'POST', cuerpo: {} }),
+    bloqueos: (desde, hasta) => pedir(`/bloqueos?desde=${q(desde)}&hasta=${q(hasta)}`),
+    crearBloqueo: (datos) => pedir('/bloqueos', { metodo: 'POST', cuerpo: datos }),
   };
 }

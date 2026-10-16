@@ -175,3 +175,45 @@
   .reserva-fila { grid-template-columns: 1fr auto; }
   .reserva-fila .reserva-hora { grid-column: 1 / -1; }
 }
+
+
+/* ---------- Gestión ---------- */
+
+.gestion { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; }
+.gestion-titulo { font-size: clamp(1.45rem, 3.2vw, 2rem); font-weight: 700; margin-bottom: 14px; }
+.pestanas { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 18px; background: #DCE4E3; border-radius: 999px; }
+.pestana { min-height: 40px; padding: 8px 20px; border: 0; border-radius: 999px; background: transparent; font-weight: 600; color: var(--tinta-suave); }
+.pestana[aria-selected="true"] { background: var(--papel); color: var(--tinta); box-shadow: 0 1px 3px rgba(23, 48, 59, .18); }
+
+.gestion-columnas { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.tarjeta { padding: 20px; background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio-tarjeta); }
+.tarjeta h2 { font-size: 1.15rem; font-weight: 650; margin-bottom: 14px; }
+.bloqueos-lista .grupo-fecha h3 { font-size: .95rem; font-weight: 650; color: var(--tinta-suave); margin-bottom: 8px; }
+.bloqueos-lista .reserva-fila { grid-template-columns: auto 1fr auto; }
+
+.usuarios-barra { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 4px; }
+.usuarios-barra .campo { flex: 1; margin-bottom: 8px; }
+.usuarios-lista { display: grid; gap: 8px; margin-top: 10px; }
+.usuario-fila { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; padding: 12px 14px; border: 1px solid var(--linea); border-radius: 12px; }
+.usuario-inactivo { background: #F6F8F8; }
+.usuario-inactivo .usuario-datos strong { color: var(--tinta-suave); }
+.usuario-datos { display: grid; gap: 4px; min-width: 0; }
+.usuario-id { font-size: .88rem; color: var(--tinta-suave); }
+.etiquetas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.etiqueta { padding: 2px 10px; border-radius: 999px; background: var(--bruma); font-size: .8rem; font-weight: 550; color: var(--tinta-suave); }
+.etiqueta-admin { background: var(--tinta); color: #fff; }
+.etiqueta-gestor { background: var(--pino-claro); color: var(--pino-oscuro); }
+.etiqueta-baja { background: var(--peligro-claro); color: #7C1A21; }
+.etiqueta-pendiente { background: #FFF1D6; color: #7A5200; }
+.usuario-acciones { display: flex; gap: 6px; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .gestion-columnas { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .gestion { padding: 14px 12px 28px; }
+  .tarjeta { padding: 16px; }
+  .usuarios-barra { flex-direction: column; align-items: stretch; gap: 0; }
+  .usuario-acciones { width: 100%; }
+  .usuario-acciones .boton { flex: 1; }
+}

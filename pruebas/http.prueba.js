@@ -274,6 +274,13 @@ test('bloqueos: un usuario no puede; la gestora sí, y los usuarios lo ven como 
   assert.ok(!vistaLuis.crudo.includes('Mantenimiento'));
   assert.equal((await llamar('reservas', { metodo: 'POST', token: luis, cuerpo: { ...RESERVA, consultorio: 4 } })).estado, 409);
 
+  // La gestora puede listar los bloqueos vigentes; el usuario no.
+  const lista = await llamar('bloqueos', { params: { desde: '2026-10-15', hasta: '2026-10-31' }, token: gestora });
+  assert.equal(lista.estado, 200);
+  assert.equal(lista.cuerpo.reservas[0].observacion, 'Mantenimiento');
+  assert.equal((await llamar('bloqueos', { params: { desde: '2026-10-15', hasta: '2026-10-31' }, token: luis })).estado, 403);
+  assert.equal((await llamar('bloqueos', { token: gestora })).estado, 400);
+
   // Se deshace cancelando el bloqueo.
   const id = creado.cuerpo.reservas[0].id;
   assert.equal((await llamar('reservas', { metodo: 'DELETE', params: { id }, token: luis })).estado, 403);

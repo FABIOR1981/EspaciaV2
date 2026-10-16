@@ -1,15 +1,25 @@
 'use strict';
-// POST /api/bloqueos  { consultorios: [0|1..5], fecha, horaInicio?, horaFin?, diaCompleto?, observacion? }  (admin y gestor)
+// /api/bloqueos  (admin y gestor)
+//   GET  ?desde=AAAA-MM-DD&hasta=AAAA-MM-DD   bloqueos vigentes
+//   POST { consultorios: [0|1..5], fecha, horaInicio?, horaFin?, diaCompleto?, observacion? }
 // Para deshacer un bloqueo se usa DELETE /api/reservas?id=...
 const { crearManejador, responder, responderError } = require('./nucleo/http');
 const { dependenciasPorDefecto } = require('./nucleo/dependencias');
 const { crearBloqueo } = require('./nucleo/reservas_servicio');
-const { reservaParaSesion } = require('./nucleo/vistas_reservas');
+const { reservaParaSesion, listarBloqueos } = require('./nucleo/vistas_reservas');
 
 exports.crearHandler = (dependencias) =>
   crearManejador({
     dependencias,
     metodos: {
+      GET: async ({ deps, sesion, params }) => {
+        if (!params.desde || !params.hasta) {
+          return responderError({ estado: 400, codigo: 'PARAMETROS_INVALIDOS', mensaje: 'Indique "desde" y "hasta".' });
+        }
+        const r = await listarBloqueos({ repo: deps.repo, sesion, desde: params.desde, hasta: params.hasta });
+        return r.ok ? responder(200, { reservas: r.reservas }) : responderError(r);
+      },
+
       POST: async ({ deps, sesion, ahora, cuerpo }) => {
         const r = await crearBloqueo({
           reglas: deps.reglas,

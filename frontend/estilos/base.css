@@ -152,6 +152,18 @@ dialog.hoja::backdrop { background: rgba(23, 48, 59, .55); }
 .sala-etiqueta { display: inline-flex; align-items: center; gap: 8px; }
 .punto { width: 10px; height: 10px; border-radius: 50%; background: var(--sala-color, var(--tinta-suave)); flex: none; }
 
+.casilla { display: inline-flex; align-items: center; gap: 10px; font-weight: 500; cursor: pointer; min-height: 32px; }
+.casilla input { width: 20px; height: 20px; accent-color: var(--pino); }
+.opciones-compactas { grid-template-columns: repeat(auto-fit, minmax(54px, 1fr)); }
+.opciones-compactas .opcion-cuerpo { justify-items: center; padding: 8px 10px; }
+.par-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.clave-temporal {
+  margin: 10px 0 8px; padding: 16px; text-align: center; border-radius: var(--radio-campo);
+  background: var(--bruma); border: 1.5px dashed var(--linea-fuerte);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.6rem; font-weight: 700; letter-spacing: .08em;
+  user-select: all; word-break: break-all;
+}
+
 .confirmacion { margin-top: 14px; padding: 14px; background: var(--peligro-claro); border-radius: var(--radio-campo); }
 .confirmacion p { font-weight: 550; margin-bottom: 10px; }
 
@@ -237,7 +249,7 @@ dialog.hoja::backdrop { background: rgba(23, 48, 59, .55); }
 
   .nav-inferior {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-    display: grid; grid-template-columns: 1fr 1fr; height: calc(var(--alto-nav-inferior) + env(safe-area-inset-bottom, 0px));
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; height: calc(var(--alto-nav-inferior) + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
     background: var(--papel); border-top: 1px solid var(--linea);
   }

@@ -118,3 +118,27 @@ test('"mis reservas": valida el rango de fechas', async () => {
   assert.equal((await v.listarReservasDe({ ...base, desde: '2026-01-01', hasta: '2027-12-31' })).codigo, 'RANGO_DEMASIADO_GRANDE');
   assert.equal((await v.listarReservasDe({ ...base, desde: 'x', hasta: '2026-10-31' })).codigo, 'FECHA_INVALIDA');
 });
+
+// ---------- Bloqueos vigentes ----------
+
+test('listar bloqueos: admin y gestor ven los vigentes con su motivo; las reservas y los bloqueos cancelados no aparecen', async () => {
+  const repo = await repoConDatos();
+  const r = await v.listarBloqueos({ repo, sesion: GESTOR, desde: '2026-10-15', hasta: '2026-10-31' });
+  assert.equal(r.ok, true);
+  assert.equal(r.reservas.length, 1);
+  assert.equal(r.reservas[0].observacion, 'Mantenimiento');
+  assert.equal(r.reservas[0].tipo, 'bloqueo');
+  const cancelado = await repo.crear(reserva({ consultorio: 5, tipo: 'bloqueo', titularId: 'Gestora', titularNombre: 'Bloqueada', creadaPor: 'Gestora G', observacion: 'Viejo' }));
+  await repo.cancelar(cancelado.id, 'Gestora G');
+  assert.equal((await v.listarBloqueos({ repo, sesion: ADMIN, desde: '2026-10-15', hasta: '2026-10-31' })).reservas.length, 1);
+});
+
+test('listar bloqueos: un usuario común no puede, y se validan las fechas', async () => {
+  const repo = await repoConDatos();
+  const negado = await v.listarBloqueos({ repo, sesion: LUIS, desde: '2026-10-15', hasta: '2026-10-31' });
+  assert.equal(negado.codigo, 'NO_PUEDE_BLOQUEAR');
+  assert.equal(negado.estado, 403);
+  assert.equal((await v.listarBloqueos({ repo, sesion: ADMIN, desde: 'x', hasta: '2026-10-31' })).codigo, 'FECHA_INVALIDA');
+  assert.equal((await v.listarBloqueos({ repo, sesion: ADMIN, desde: '2026-10-31', hasta: '2026-10-15' })).codigo, 'RANGO_INVALIDO');
+  assert.equal((await v.listarBloqueos({ repo, sesion: ADMIN, desde: '2026-01-01', hasta: '2027-12-31' })).codigo, 'RANGO_DEMASIADO_GRANDE');
+});
