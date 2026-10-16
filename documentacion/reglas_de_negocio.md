@@ -167,9 +167,9 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 
 ---
 
-## 13. Implementación del backend (v0.5.0)
+## 13. Implementación (v0.6.0: servidor y primera pantalla)
 
-**Archivos y qué cubren** (170 pruebas automáticas; corren solas en GitHub Actions en cada subida):
+**Archivos y qué cubren** (172 pruebas automáticas del servidor, más un recorrido de 15 pasos en un navegador real; corren solas en GitHub Actions en cada subida):
 
 | Archivo | Contenido |
 |---|---|
@@ -194,7 +194,8 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 **Hallazgos de la sección 10 ya cubiertos por el diseño:** 1 a 5 (validación en servidor y permisos), 8 (configuración única en `reglas.json`), 12 (los días de la semana se calculan sobre el texto de la fecha, no con la zona del servidor).
 **También cubiertos ahora:** 9 (después de crear se vuelve a verificar el día; si dos personas reservan a la vez, se queda la que llegó primero y la otra se deshace), 11 (un solo módulo de Google), y el bloqueo múltiple es "todo o nada" (si una creación falla o choca, no queda ninguno).
 **Hallazgos 6 y 7 en proceso:** contraseñas con sal y sesión firmada ya están hechas; el secreto de sesión no tiene valor por defecto (sección 13, supuesto 8) y el token de GitHub nunca viene del navegador.
-**Pendientes de implementar:** el respaldo diario (`respaldo.js`, programado) y la pantalla (frontend).
+**Pantalla (frontend), primera versión:** ingreso, cambio de clave obligatorio, agenda del día con reserva y cancelación, y "Mis reservas". Funciona en notebook (los 5 consultorios en columnas) y en celular (un consultorio por vez, navegación abajo). El encabezado de consultorios queda pegado al hacer scroll (el problema que dio origen a V2). Seguridad del navegador: no se usan scripts ni estilos incrustados (política de contenido estricta en `netlify.toml`), y los textos de otras personas nunca se insertan como HTML.
+**Pendientes de implementar:** el respaldo diario (`respaldo.js`, programado) y, en la pantalla, las herramientas de gestión: bloqueos y administración de usuarios.
 
 ### Rutas HTTP
 

@@ -118,6 +118,7 @@ async function autenticar({ almacen, id, clave }) {
   return {
     ok: true,
     sesion: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol },
+    consPref: Array.isArray(usuario.consPref) ? usuario.consPref : [],
     requiereCambioPass: Boolean(usuario.requiereCambioPass),
   };
 }

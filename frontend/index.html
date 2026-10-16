@@ -2,13 +2,20 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EspaciaV2</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17303B">
+  <title>Espacia</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2317303B'/%3E%3Crect x='7' y='7' width='8' height='11' rx='2' fill='%230F7B6C'/%3E%3Crect x='17' y='7' width='8' height='6' rx='2' fill='%23E3E9EA'/%3E%3Crect x='17' y='15' width='8' height='10' rx='2' fill='%23E3E9EA'/%3E%3Crect x='7' y='20' width='8' height='5' rx='2' fill='%23E3E9EA'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="estilos/base.css">
+  <link rel="stylesheet" href="estilos/agenda.css">
 </head>
 <body>
-  <main style="font-family: system-ui, sans-serif; max-width: 32rem; margin: 4rem auto; padding: 0 1rem;">
-    <h1>EspaciaV2</h1>
-    <p>Versión en construcción.</p>
-  </main>
+  <div id="app"></div>
+  <div id="avisos" class="avisos" aria-live="polite"></div>
+  <noscript><p style="padding:1rem">Necesitás activar JavaScript para usar Espacia.</p></noscript>
+  <script type="module" src="scripts/app.js"></script>
 </body>
 </html>

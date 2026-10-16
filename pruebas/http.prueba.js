@@ -95,6 +95,7 @@ test('ingresar: devuelve token, sesión y vencimiento según el rol', async () =
   assert.equal(usuario.estado, 200);
   assert.deepEqual(usuario.cuerpo.sesion, { id: 'AdrianaPR', nombre: 'Adriana Perla R', rol: 'usuario' });
   assert.equal(usuario.cuerpo.venceEnSegundos, 4 * 3600);
+  assert.deepEqual(usuario.cuerpo.consPref, [2, 3]); // para abrir la agenda en su consultorio preferido
   assert.ok(!usuario.crudo.includes('scrypt'));
   const admin = await llamar('ingresar', { metodo: 'POST', cuerpo: { usuario: 'Admin', clave: 'ClaveAdmin1' } });
   assert.equal(admin.cuerpo.venceEnSegundos, 12 * 3600);

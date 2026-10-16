@@ -1,0 +1,177 @@
+/* Espacia — agenda (grilla de reservas) y "Mis reservas" */
+
+.agenda, .mis-reservas { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; }
+
+/* ---------- Cabecera de la agenda ---------- */
+
+.agenda-cabecera { display: grid; gap: 14px; margin-bottom: 14px; }
+.agenda-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; justify-content: space-between; }
+
+.fecha-actual { font-size: clamp(1.45rem, 3.2vw, 2rem); font-weight: 700; line-height: 1.1; }
+.fecha-actual small { display: block; margin-top: 4px; font-size: .95rem; font-weight: 500; color: var(--tinta-suave); }
+
+.nav-fecha { display: flex; align-items: center; gap: 6px; }
+.nav-fecha .boton-icono { background: var(--papel); border: 1.5px solid var(--linea-fuerte); }
+.nav-fecha .boton-icono:disabled { opacity: .4; cursor: not-allowed; }
+.nav-fecha .boton { background: var(--papel); border-color: var(--linea-fuerte); min-height: 44px; }
+.selector-fecha { position: relative; display: inline-flex; }
+.selector-fecha input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+
+.tira-dias { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.tira-dias::-webkit-scrollbar { display: none; }
+.dia {
+  flex: 1 1 0; min-width: 48px; display: grid; justify-items: center; gap: 0; padding: 8px 6px;
+  background: var(--papel); border: 1.5px solid var(--linea); border-radius: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.dia .dia-nombre { font-size: .8rem; color: var(--tinta-suave); text-transform: none; }
+.dia .dia-numero { font-size: 1.2rem; font-weight: 650; line-height: 1.2; }
+.dia:not(:disabled):hover { border-color: var(--linea-fuerte); }
+.dia[aria-pressed="true"] { background: var(--tinta); border-color: var(--tinta); color: #fff; }
+.dia[aria-pressed="true"] .dia-nombre { color: #BFD3D3; }
+.dia:disabled { opacity: .4; cursor: not-allowed; }
+.dia.es-hoy .dia-numero::after { content: ''; display: block; width: 5px; height: 5px; margin: 1px auto 0; border-radius: 50%; background: var(--pino); }
+.dia.es-hoy[aria-pressed="true"] .dia-numero::after { background: #6FD3C0; }
+
+.agenda-leyenda { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .88rem; color: var(--tinta-suave); }
+.leyenda-item { display: inline-flex; align-items: center; gap: 8px; }
+.leyenda-muestra { width: 18px; height: 14px; border-radius: 4px; border: 1px solid var(--linea-fuerte); background: var(--papel); }
+.leyenda-muestra.l-propio { background: var(--pino); border-color: var(--pino); }
+.leyenda-muestra.l-ocupado { background: repeating-linear-gradient(135deg, var(--ocupado-fondo) 0 4px, var(--ocupado-raya) 4px 6px); }
+
+/* ---------- Grilla ---------- */
+
+.grilla {
+  position: relative; background: var(--papel);
+  border: 1px solid var(--linea); border-radius: var(--radio-tarjeta);
+  overflow-x: clip; /* no crea contenedor de scroll: el encabezado se pega a la pantalla */
+}
+.grilla[aria-busy="true"] .grilla-cuerpo { opacity: .55; }
+
+.grilla-encabezado {
+  position: sticky; top: var(--alto-barra); z-index: 20;
+  display: grid; grid-template-columns: var(--ancho-horas) repeat(var(--salas), minmax(0, 1fr));
+  background: var(--papel); border-bottom: 1.5px solid var(--linea-fuerte);
+  border-radius: var(--radio-tarjeta) var(--radio-tarjeta) 0 0;
+}
+.encabezado-esquina { display: grid; place-items: center; font-size: .78rem; color: var(--tinta-suave); }
+.sala-titulo {
+  display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0;
+  padding: 12px 6px; border-left: 1px solid var(--linea); font-weight: 650;
+}
+.sala-titulo span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* En celular: un consultorio por vez, elegido con números */
+.salas-selector { display: flex; align-items: center; gap: 6px; padding: 10px 12px; grid-column: 1 / -1; }
+.salas-selector .selector-etiqueta { font-weight: 650; font-size: .92rem; margin-right: 4px; }
+.sala-boton {
+  position: relative; display: grid; place-items: center; flex: 1 1 0; min-width: 40px; max-width: 52px; height: 44px; padding: 0;
+  background: var(--papel); border: 1.5px solid var(--linea-fuerte); border-radius: 12px; font-weight: 700; font-size: 1.05rem;
+}
+.sala-boton::after {
+  content: ''; position: absolute; left: 50%; bottom: 5px; width: 14px; height: 3px; margin-left: -7px;
+  border-radius: 2px; background: var(--sala-color);
+}
+.sala-boton[aria-pressed="true"] { background: var(--tinta); border-color: var(--tinta); color: #fff; }
+.sala-preferida-marca { display: none; }
+
+.grilla-cuerpo {
+  position: relative; display: grid;
+  grid-template-columns: var(--ancho-horas) repeat(var(--salas), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--filas), var(--alto-tramo));
+}
+
+.hora-etiqueta {
+  grid-column: 1; padding: 3px 8px 0 0; text-align: right; align-self: start;
+  font-size: .78rem; font-variant-numeric: tabular-nums; color: var(--tinta-suave);
+  border-top: 1px solid var(--linea);
+}
+
+.celda {
+  position: relative; width: 100%; height: 100%; padding: 0;
+  background: transparent; border: 0; border-left: 1px solid var(--linea);
+  border-top: 1px dashed var(--linea);
+}
+.celda.hora-en-punto { border-top: 1px solid var(--linea); }
+.celda::after {
+  content: '+'; position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 1.3rem; font-weight: 500; color: var(--pino); opacity: 0; transition: opacity .12s ease;
+}
+.celda:not(:disabled):hover { background: var(--pino-claro); }
+.celda:not(:disabled):hover::after, .celda:focus-visible::after { opacity: 1; }
+.celda:focus-visible { outline-offset: -3px; background: var(--pino-claro); }
+.celda.pasada { background: #F4F6F6; }
+.celda:disabled { cursor: default; }
+.celda:disabled::after { content: none; }
+
+/* ---------- Bloques (reservas) ---------- */
+
+.bloque {
+  position: relative; z-index: 2; margin: 2px 3px; padding: 6px 9px; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column; gap: 1px; overflow: hidden; text-align: left;
+  border: 0; border-radius: 9px; font-size: .84rem; line-height: 1.25;
+}
+.bloque .bloque-titulo { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bloque .bloque-hora { font-variant-numeric: tabular-nums; opacity: .9; white-space: nowrap; }
+
+.bloque-propio { background: var(--pino); color: #fff; }
+.bloque-propio:hover { background: var(--pino-oscuro); }
+
+.bloque-ocupado {
+  background: repeating-linear-gradient(135deg, var(--ocupado-fondo) 0 7px, var(--ocupado-raya) 7px 9px);
+  color: var(--ocupado-texto); cursor: default; justify-content: center;
+}
+
+.bloque-detalle {
+  background: color-mix(in srgb, var(--sala-color) 14%, #fff);
+  border-left: 4px solid var(--sala-color); color: var(--tinta);
+}
+.bloque-detalle:hover { background: color-mix(in srgb, var(--sala-color) 24%, #fff); }
+
+.bloque-bloqueo {
+  background: repeating-linear-gradient(135deg, #CBD3D6 0 7px, #B9C4C8 7px 9px);
+  color: #2E444E; border-left: 4px solid var(--tinta-suave);
+}
+
+.linea-ahora {
+  position: absolute; left: var(--ancho-horas); right: 0; z-index: 3; height: 0;
+  border-top: 2px solid var(--ahora); pointer-events: none;
+}
+.linea-ahora::before {
+  content: ''; position: absolute; left: -5px; top: -6px; width: 10px; height: 10px; border-radius: 50%; background: var(--ahora);
+}
+
+.grilla-estado { padding: 28px 20px; text-align: center; color: var(--tinta-suave); }
+.grilla-estado .mensaje-error { display: inline-block; margin-bottom: 12px; }
+
+.agenda-nota { margin-top: 12px; font-size: .88rem; color: var(--tinta-suave); }
+
+/* ---------- Mis reservas ---------- */
+
+.mis-reservas h1 { font-size: clamp(1.45rem, 3.2vw, 2rem); font-weight: 700; margin-bottom: 4px; }
+.mis-reservas .intro { color: var(--tinta-suave); margin-bottom: 20px; }
+.grupo-fecha { margin-bottom: 22px; }
+.grupo-fecha h2 { font-size: 1rem; font-weight: 650; color: var(--tinta-suave); margin-bottom: 8px; }
+.reserva-fila {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
+  padding: 12px 14px; margin-bottom: 8px;
+  background: var(--papel); border: 1px solid var(--linea); border-left: 5px solid var(--sala-color, var(--pino)); border-radius: 12px;
+}
+.reserva-hora { font-size: 1.2rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.reserva-sala { color: var(--tinta-suave); font-size: .95rem; }
+.vacio { padding: 40px 20px; text-align: center; background: var(--papel); border: 1px dashed var(--linea-fuerte); border-radius: var(--radio-tarjeta); }
+.vacio p { margin-bottom: 14px; color: var(--tinta-suave); }
+
+/* ---------- Celular ---------- */
+
+@media (max-width: 760px) {
+  .agenda, .mis-reservas { padding: 14px 12px 28px; }
+  .agenda-fila { gap: 10px; }
+  .nav-fecha { width: 100%; }
+  .nav-fecha .selector-fecha { margin-left: auto; }
+  .grilla { border-radius: 12px; }
+  .grilla-encabezado { border-radius: 12px 12px 0 0; }
+  .bloque { font-size: .9rem; padding: 7px 10px; }
+  .reserva-fila { grid-template-columns: 1fr auto; }
+  .reserva-fila .reserva-hora { grid-column: 1 / -1; }
+}

@@ -1,5 +1,5 @@
 'use strict';
-// POST /api/ingresar  { usuario, clave }  ->  { token, sesion, requiereCambioPass, venceEnSegundos }
+// POST /api/ingresar  { usuario, clave }  ->  { token, sesion, consPref, requiereCambioPass, venceEnSegundos }
 const { crearManejador, responder, responderError } = require('./nucleo/http');
 const { dependenciasPorDefecto } = require('./nucleo/dependencias');
 const { autenticar } = require('./nucleo/usuarios_servicio');
@@ -18,7 +18,13 @@ exports.crearHandler = (dependencias) =>
           duracionSegundos,
           ahoraSegundos: Math.floor(instante.getTime() / 1000),
         });
-        return responder(200, { token, sesion: r.sesion, requiereCambioPass: r.requiereCambioPass, venceEnSegundos: duracionSegundos });
+        return responder(200, {
+          token,
+          sesion: r.sesion,
+          consPref: r.consPref,
+          requiereCambioPass: r.requiereCambioPass,
+          venceEnSegundos: duracionSegundos,
+        });
       },
     },
   });

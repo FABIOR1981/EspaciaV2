@@ -107,3 +107,12 @@ test('almacén sobre GitHub: leer y actualizar con la forma que usa el servicio 
   await almacen.actualizar((lista) => [...lista, luis], 'Alta de Luis');
   assert.deepEqual(estado.contenido.usuarios, [ana, luis]);
 });
+
+test('almacén sobre GitHub: si el archivo no se encuentra, es un error de configuración y no "sin usuarios"', async () => {
+  const { fetchSimulado } = crearGitHubSimulado({ existe: false });
+  const almacen = gh.crearAlmacenDeUsuarios(CFG, { fetchFn: fetchSimulado });
+  await assert.rejects(
+    () => almacen.leer(),
+    (e) => e instanceof gh.ErrorGitHub && /revise el repo, la ruta y los permisos/.test(e.message) && !e.message.includes('TOKEN-SECRETO-123')
+  );
+});
