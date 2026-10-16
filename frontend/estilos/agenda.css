@@ -159,12 +159,17 @@
 }
 .reserva-hora { font-size: 1.2rem; font-weight: 650; font-variant-numeric: tabular-nums; }
 .reserva-sala { color: var(--tinta-suave); font-size: .95rem; }
+.mis-reservas .campo-ayuda { margin-bottom: 10px; }
+.filtros { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 12px; align-items: start; margin-bottom: 6px; }
+.filtros .campo { margin-bottom: 8px; }
+.filtros .casilla { align-self: center; margin-bottom: 8px; }
 .vacio { padding: 40px 20px; text-align: center; background: var(--papel); border: 1px dashed var(--linea-fuerte); border-radius: var(--radio-tarjeta); }
 .vacio p { margin-bottom: 14px; color: var(--tinta-suave); }
 
 /* ---------- Celular ---------- */
 
 @media (max-width: 760px) {
+  .filtros { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .agenda, .mis-reservas { padding: 14px 12px 28px; }
   .agenda-fila { gap: 10px; }
   .nav-fecha { width: 100%; }

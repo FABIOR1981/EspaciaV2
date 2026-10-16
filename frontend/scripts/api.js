@@ -40,6 +40,7 @@ export function crearApi({ obtenerToken, alSesionInvalida, alDebeCambiarClave })
     cambiarClave: (claveActual, claveNueva) => pedir('/clave', { metodo: 'POST', cuerpo: { claveActual, claveNueva } }),
     agenda: (fecha) => pedir(`/reservas?fecha=${q(fecha)}`),
     misReservas: (desde, hasta) => pedir(`/reservas?desde=${q(desde)}&hasta=${q(hasta)}`),
+    todasLasReservas: (desde, hasta) => pedir(`/reservas?desde=${q(desde)}&hasta=${q(hasta)}&todas=1`),
     reservar: (datos) => pedir('/reservas', { metodo: 'POST', cuerpo: datos }),
     cancelar: (id) => pedir(`/reservas?id=${q(id)}`, { metodo: 'DELETE' }),
     usuarios: () => pedir('/usuarios'),

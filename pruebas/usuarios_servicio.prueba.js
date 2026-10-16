@@ -3,7 +3,19 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const reglas = require('../compartido/reglas.json');
 const c = require('../netlify/functions/nucleo/contrasenas');
-const u = require('../netlify/functions/nucleo/usuarios_servicio');
+const servicio = require('../netlify/functions/nucleo/usuarios_servicio');
+
+// Jueves 15/10/2026. Las funciones reciben la fecha de "hoy" por parámetro (la entrega la capa HTTP).
+const AHORA = { fecha: '2026-10-15', minutos: 10 * 60 };
+const u = {
+  autenticar: (a) => servicio.autenticar({ reglas, ahora: AHORA, ...a }),
+  listarUsuarios: (a) => servicio.listarUsuarios({ reglas, ahora: AHORA, ...a }),
+  crearUsuario: (a) => servicio.crearUsuario({ ahora: AHORA, ...a }),
+  editarUsuario: (a) => servicio.editarUsuario({ ahora: AHORA, ...a }),
+  reiniciarClave: (a) => servicio.reiniciarClave({ reglas, ahora: AHORA, ...a }),
+  cambiarMiClave: servicio.cambiarMiClave,
+  validarSesionContraUsuarios: servicio.validarSesionContraUsuarios,
+};
 const { crearAlmacenEnMemoria } = require('./ayudas/almacen_en_memoria');
 
 const ADMIN = { id: 'Admin', nombre: 'Administración', rol: 'admin' };
@@ -103,7 +115,7 @@ test('listar: admin y gestor ven la lista sin hashes; un usuario no', async () =
 
 // ---------- Alta ----------
 
-test('el admin crea un usuario con clave temporal, que debe cambiar en el primer ingreso', async () => {
+test('el admin crea un usuario con clave inicial simple, que debe cambiar en el primer ingreso', async () => {
   const almacen = await nuevoAlmacen();
   const r = await u.crearUsuario({ reglas, almacen, sesion: ADMIN, datos: { id: 'NuevoUsu', nombre: 'Nuevo Usuario', rol: 'usuario' } });
   assert.equal(r.ok, true);
@@ -111,7 +123,8 @@ test('el admin crea un usuario con clave temporal, que debe cambiar en el primer
   assert.equal(r.usuario.requiereCambioPass, true);
   assert.deepEqual(r.usuario.consPref, [1, 2, 3, 4, 5]);
   assert.equal(r.usuario.contrasena, undefined);
-  assert.equal(r.claveTemporal.length, 12);
+  assert.equal(r.claveTemporal, 'NuevoUsu1234567'); // clave inicial simple de los usuarios comunes
+  assert.equal(r.venceEl, '2026-10-22'); // vence a los 7 días
   const guardado = porId(almacen, 'NuevoUsu');
   assert.match(guardado.contrasena, /^scrypt\$/);
   assert.ok(!JSON.stringify(guardado).includes(r.claveTemporal));
@@ -246,4 +259,102 @@ test('cambiar mi clave: si la clave cambió mientras tanto, no se pisa', async (
   const r = await u.cambiarMiClave({ almacen, sesion: ANA_SESION, claveActual: 'ClaveAdriana1', claveNueva: 'NuevaClave99' });
   assert.equal(r.codigo, 'CAMBIO_CONCURRENTE');
   assert.equal(r.estado, 409);
+});
+
+// ---------- Clave inicial simple que vence ----------
+
+const entrarCon = (ahora, a) => servicio.autenticar({ reglas, ahora, ...a });
+
+test('usuarios comunes: clave inicial = usuario + 1234567, válida hasta 7 días después', async () => {
+  const almacen = await nuevoAlmacen();
+  const alta = await u.crearUsuario({ reglas, almacen, sesion: GESTOR, datos: { id: 'Maria', nombre: 'María Gómez', rol: 'usuario' } });
+  assert.equal(alta.claveTemporal, 'Maria1234567');
+  assert.equal(alta.venceEl, '2026-10-22');
+  assert.equal(alta.usuario.claveInicialHasta, '2026-10-22');
+  assert.equal(alta.usuario.claveInicialVencida, false);
+
+  // Sirve hasta el último día inclusive...
+  const ultimoDia = await entrarCon({ fecha: '2026-10-22', minutos: 23 * 60 + 59 }, { almacen, id: 'Maria', clave: 'Maria1234567' });
+  assert.equal(ultimoDia.ok, true);
+  assert.equal(ultimoDia.requiereCambioPass, true);
+  // ...y vence al día siguiente, con un aviso claro (solo a quien acierta la clave).
+  const vencida = await entrarCon({ fecha: '2026-10-23', minutos: 0 }, { almacen, id: 'Maria', clave: 'Maria1234567' });
+  assert.equal(vencida.codigo, 'CLAVE_INICIAL_VENCIDA');
+  assert.equal(vencida.estado, 403);
+  assert.match(vencida.mensaje, /reinicie/);
+  const claveErronea = await entrarCon({ fecha: '2026-10-23', minutos: 0 }, { almacen, id: 'Maria', clave: 'otra' });
+  assert.equal(claveErronea.codigo, 'CREDENCIALES_INVALIDAS');
+});
+
+test('al cambiar la clave desaparece el vencimiento', async () => {
+  const almacen = await nuevoAlmacen();
+  await u.crearUsuario({ reglas, almacen, sesion: ADMIN, datos: { id: 'Maria', nombre: 'María Gómez', rol: 'usuario' } });
+  const cambio = await u.cambiarMiClave({ almacen, sesion: { id: 'Maria', nombre: 'María Gómez', rol: 'usuario' }, claveActual: 'Maria1234567', claveNueva: 'MiClaveNueva9' });
+  assert.equal(cambio.ok, true);
+  assert.equal('claveInicialVenceEl' in porId(almacen, 'Maria'), false);
+  const meses = await entrarCon({ fecha: '2027-03-01', minutos: 0 }, { almacen, id: 'Maria', clave: 'MiClaveNueva9' });
+  assert.equal(meses.ok, true);
+});
+
+test('gestión y administración reciben una clave aleatoria que no vence por fecha', async () => {
+  const almacen = await nuevoAlmacen();
+  const alta = await u.crearUsuario({ reglas, almacen, sesion: ADMIN, datos: { id: 'NuevaGest', nombre: 'Nueva Gestora', rol: 'gestor' } });
+  assert.equal(alta.claveTemporal.length, 12);
+  assert.ok(!alta.claveTemporal.includes('1234567'));
+  assert.equal(alta.venceEl, null);
+  assert.equal(alta.usuario.claveInicialHasta, null);
+  const tarde = await entrarCon({ fecha: '2027-03-01', minutos: 0 }, { almacen, id: 'NuevaGest', clave: alta.claveTemporal });
+  assert.equal(tarde.ok, true);
+});
+
+test('reiniciar la clave de un usuario común da la inicial simple con una ventana nueva de 7 días', async () => {
+  const almacen = await nuevoAlmacen();
+  const r = await u.reiniciarClave({ almacen, sesion: GESTOR, id: 'Luis' });
+  assert.equal(r.claveTemporal, 'Luis1234567');
+  assert.equal(r.venceEl, '2026-10-22');
+  assert.equal((await entrarCon({ fecha: '2026-10-22', minutos: 0 }, { almacen, id: 'Luis', clave: 'Luis1234567' })).ok, true);
+  // Reiniciar de nuevo después del vencimiento renueva la ventana.
+  const otra = await servicio.reiniciarClave({ reglas, almacen, sesion: GESTOR, id: 'Luis', ahora: { fecha: '2026-10-30', minutos: 0 } });
+  assert.equal(otra.venceEl, '2026-11-06');
+});
+
+test('reiniciar la clave de un administrador da una clave aleatoria', async () => {
+  const almacen = await nuevoAlmacen();
+  const r = await u.reiniciarClave({ almacen, sesion: ADMIN, id: 'OtroAdmin' });
+  assert.equal(r.claveTemporal.length, 12);
+  assert.equal(r.venceEl, null);
+});
+
+test('cuentas migradas que siguen con la clave inicial vencen en la fecha general', async () => {
+  const almacen = crearAlmacenEnMemoria([
+    { id: 'Vieja', nombre: 'Clave Vieja', rol: 'usuario', consPref: [1], activo: true, requiereCambioPass: true, contrasena: c.sha256Hex('Vieja1234567') },
+    { id: 'Lista', nombre: 'Ya Cambio', rol: 'usuario', consPref: [1], activo: true, requiereCambioPass: false, contrasena: c.sha256Hex('MiClavePropia9') },
+  ]);
+  const fechaGeneral = reglas.claveInicial.vencimientoLegado;
+  assert.equal((await entrarCon({ fecha: fechaGeneral, minutos: 0 }, { almacen, id: 'Vieja', clave: 'Vieja1234567' })).ok, true);
+  const despues = await entrarCon({ fecha: '2099-01-01', minutos: 0 }, { almacen, id: 'Vieja', clave: 'Vieja1234567' });
+  assert.equal(despues.codigo, 'CLAVE_INICIAL_VENCIDA');
+  // Quien ya había cambiado su clave no se ve afectado.
+  assert.equal((await entrarCon({ fecha: '2099-01-01', minutos: 0 }, { almacen, id: 'Lista', clave: 'MiClavePropia9' })).ok, true);
+});
+
+test('el listado muestra hasta cuándo sirve la clave inicial de cada persona', async () => {
+  const almacen = await nuevoAlmacen();
+  await u.crearUsuario({ reglas, almacen, sesion: ADMIN, datos: { id: 'Maria', nombre: 'María Gómez', rol: 'usuario' } });
+  const lista = (await u.listarUsuarios({ almacen, sesion: GESTOR })).usuarios;
+  assert.equal(lista.find((x) => x.id === 'Maria').claveInicialHasta, '2026-10-22');
+  assert.equal(lista.find((x) => x.id === 'Luis').claveInicialHasta, null); // ya tiene su propia clave
+  const dentroDeUnMes = (await servicio.listarUsuarios({ reglas, almacen, sesion: GESTOR, ahora: { fecha: '2026-11-20', minutos: 0 } })).usuarios;
+  assert.equal(dentroDeUnMes.find((x) => x.id === 'Maria').claveInicialVencida, true);
+});
+
+test('si alguien pasa a gestión antes de estrenar su clave inicial simple, esa clave deja de servir', async () => {
+  const almacen = await nuevoAlmacen();
+  await u.crearUsuario({ reglas, almacen, sesion: ADMIN, datos: { id: 'Maria', nombre: 'María Gómez', rol: 'usuario' } });
+  await u.editarUsuario({ reglas, almacen, sesion: ADMIN, id: 'Maria', cambios: { rol: 'gestor' } });
+  const r = await u.autenticar({ almacen, id: 'Maria', clave: 'Maria1234567' });
+  assert.equal(r.codigo, 'CLAVE_INICIAL_VENCIDA');
+  const reinicio = await u.reiniciarClave({ almacen, sesion: ADMIN, id: 'Maria' });
+  assert.equal(reinicio.claveTemporal.length, 12); // ahora es gestora: clave aleatoria
+  assert.equal((await u.autenticar({ almacen, id: 'Maria', clave: reinicio.claveTemporal })).ok, true);
 });

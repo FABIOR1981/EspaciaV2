@@ -1,6 +1,6 @@
 // Ventanas de gestión de usuarios: alta y edición, clave temporal y reinicio de clave.
 
-import { el, reemplazarHijos } from './utilidades.js';
+import { el, reemplazarHijos, fechaLarga } from './utilidades.js';
 import { abrirHoja, mostrarAviso } from './hojas.js';
 import { etiquetaRol } from './utilidades.js';
 
@@ -33,9 +33,15 @@ function selectorConsultorios(reglas, elegidos) {
 
 const leerElegidos = (grupo) => [...grupo.querySelectorAll('input:checked')].map((i) => Number(i.value));
 
-/** Muestra la clave temporal UNA sola vez. */
-export function abrirHojaClaveTemporal({ nombre, claveTemporal, motivo }) {
-  const aviso = el('p', { clase: 'campo-ayuda' }, 'Se muestra una sola vez. Pasásela a la persona por un medio seguro; tendrá que cambiarla al ingresar.');
+/** Muestra la clave inicial UNA sola vez (y hasta cuándo sirve, si vence). */
+export function abrirHojaClaveTemporal({ nombre, claveTemporal, motivo, venceEl }) {
+  const aviso = el(
+    'p',
+    { clase: 'campo-ayuda' },
+    venceEl
+      ? `Sirve hasta el ${fechaLarga(venceEl)}. Tendrá que cambiarla al ingresar; si no la usa a tiempo, habrá que reiniciarla.`
+      : 'Se muestra una sola vez. Pasásela a la persona por un medio seguro; tendrá que cambiarla al ingresar.'
+  );
   const botonCopiar = el('button', { clase: 'boton boton-secundario', type: 'button' }, 'Copiar clave');
   botonCopiar.addEventListener('click', async () => {
     try {
@@ -48,7 +54,7 @@ export function abrirHojaClaveTemporal({ nombre, claveTemporal, motivo }) {
   const hoja = abrirHoja({
     titulo: motivo === 'alta' ? 'Usuario creado' : 'Clave reiniciada',
     cuerpo: [
-      el('p', {}, `Clave temporal de ${nombre}:`),
+      el('p', {}, `Clave inicial de ${nombre}:`),
       el('p', { clase: 'clave-temporal', 'aria-label': 'Clave temporal' }, claveTemporal),
       aviso,
       el('div', { clase: 'hoja-acciones' }, botonCopiar, el('button', { clase: 'boton boton-primario', type: 'button', enClick: () => hoja.cerrar() }, 'Listo')),
@@ -108,7 +114,7 @@ export function abrirHojaUsuario({ reglas, sesion, api, usuario, alGuardado }) {
         if (!r.ok) return mostrarError(r.error.mensaje);
         hoja.cerrar();
         alGuardado();
-        if (esAlta) abrirHojaClaveTemporal({ nombre: r.datos.usuario.nombre, claveTemporal: r.datos.claveTemporal, motivo: 'alta' });
+        if (esAlta) abrirHojaClaveTemporal({ nombre: r.datos.usuario.nombre, claveTemporal: r.datos.claveTemporal, motivo: 'alta', venceEl: r.datos.venceEl });
         else mostrarAviso('Cambios guardados.');
         return undefined;
       },
@@ -142,11 +148,11 @@ export function abrirHojaReinicio({ api, usuario }) {
       return;
     }
     hoja.cerrar();
-    abrirHojaClaveTemporal({ nombre: usuario.nombre, claveTemporal: r.datos.claveTemporal, motivo: 'reinicio' });
+    abrirHojaClaveTemporal({ nombre: usuario.nombre, claveTemporal: r.datos.claveTemporal, motivo: 'reinicio', venceEl: r.datos.venceEl });
   });
   reemplazarHijos(zona, confirmar, el('button', { clase: 'boton boton-secundario', type: 'button', enClick: () => hoja.cerrar() }, 'No, volver'));
   const hoja = abrirHoja({
     titulo: 'Reiniciar clave',
-    cuerpo: [el('p', {}, `¿Reiniciar la clave de ${usuario.nombre}? Su clave actual dejará de servir y tendrá que elegir una nueva al ingresar.`), mensaje, zona],
+    cuerpo: [el('p', {}, `¿Reiniciar la clave de ${usuario.nombre}? Su clave actual dejará de servir; recibirá una clave inicial y tendrá que elegir una nueva al ingresar.`), mensaje, zona],
   });
 }

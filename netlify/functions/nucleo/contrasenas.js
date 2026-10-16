@@ -96,7 +96,18 @@ function generarClaveTemporal(largo = 12) {
   return clave;
 }
 
+/**
+ * Clave inicial simple de los usuarios comunes: su identificador + 1234567 (la misma construcción que usaba Espacia).
+ * Es predecible a propósito (para personas que lo necesitan fácil), por eso VENCE (ver reglas.claveInicial) y solo
+ * se usa con el perfil "usuario"; gestión y administración reciben una clave aleatoria.
+ */
+const SUFIJO_CLAVE_INICIAL = '1234567';
+function claveInicialSimple(id) {
+  return `${id}${SUFIJO_CLAVE_INICIAL}`;
+}
+
 module.exports = {
+  claveInicialSimple,
   LARGO_MINIMO,
   LARGO_MAXIMO,
   sha256Hex,

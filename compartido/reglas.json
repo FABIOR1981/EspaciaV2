@@ -5,13 +5,29 @@
     "etiqueta": "Consultorio",
     "prefijo": "C"
   },
-  "diasLaborales": [1, 2, 3, 4, 5, 6],
-  "horario": { "inicio": "08:00", "fin": "22:00" },
+  "diasLaborales": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "horario": {
+    "inicio": "08:00",
+    "fin": "22:00"
+  },
   "horariosEspeciales": {
-    "6": { "inicio": "08:00", "fin": "16:00" }
+    "6": {
+      "inicio": "08:00",
+      "fin": "16:00"
+    }
   },
   "tramoMinutos": 30,
-  "duracionesMinutos": [60, 90],
+  "duracionesMinutos": [
+    60,
+    90
+  ],
   "reserva": {
     "maxSemanasAdelante": 12,
     "gestorPuedeCerrarAyerHasta": "02:00"
@@ -27,5 +43,9 @@
   },
   "contacto": {
     "telefonoSecretaria": "091 001 334"
+  },
+  "claveInicial": {
+    "diasDeVigencia": 7,
+    "vencimientoLegado": "2026-11-30"
   }
 }

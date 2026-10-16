@@ -10,8 +10,8 @@ exports.crearHandler = (dependencias) =>
     publico: true,
     dependencias,
     metodos: {
-      POST: async ({ deps, cuerpo, instante }) => {
-        const r = await autenticar({ almacen: deps.almacen, id: cuerpo.usuario, clave: cuerpo.clave });
+      POST: async ({ deps, cuerpo, instante, ahora }) => {
+        const r = await autenticar({ reglas: deps.reglas, almacen: deps.almacen, id: cuerpo.usuario, clave: cuerpo.clave, ahora });
         if (!r.ok) return responderError(r);
         const duracionSegundos = duracionDeSesion(deps.reglas, r.sesion.rol);
         const token = crearToken(r.sesion, deps.config.sesion.secreto, {

@@ -3,13 +3,14 @@
  * /api/reservas
  *   GET    ?fecha=AAAA-MM-DD                      grilla del día (los usuarios ven "Ocupado" en lo ajeno)
  *   GET    ?desde=...&hasta=...[&usuario=Id]       mis reservas (admin y gestor pueden pedir las de otra persona)
+ *   GET    ?desde=...&hasta=...&todas=1             todas las reservas (solo admin y gestor)
  *   POST   { consultorio, fecha, hora, duracion, paraUsuario? }   crear
  *   DELETE ?id=...                                 cancelar
  */
 const { crearManejador, responder, responderError } = require('./nucleo/http');
 const { dependenciasPorDefecto } = require('./nucleo/dependencias');
 const { crearReserva, cancelarReserva } = require('./nucleo/reservas_servicio');
-const { listarDiaParaSesion, listarReservasDe, reservaParaSesion } = require('./nucleo/vistas_reservas');
+const { listarDiaParaSesion, listarReservasDe, listarTodasLasReservas, reservaParaSesion } = require('./nucleo/vistas_reservas');
 const { puedeReservarPara, mismoUsuario } = require('./nucleo/permisos');
 
 const falta = (mensaje) => responderError({ estado: 400, codigo: 'PARAMETROS_INVALIDOS', mensaje });
@@ -22,6 +23,8 @@ exports.crearHandler = (dependencias) =>
         let r;
         if (params.fecha) {
           r = await listarDiaParaSesion({ repo: deps.repo, sesion, fecha: params.fecha, incluirCanceladas: params.canceladas === '1' });
+        } else if (params.desde && params.hasta && params.todas === '1') {
+          r = await listarTodasLasReservas({ repo: deps.repo, sesion, desde: params.desde, hasta: params.hasta });
         } else if (params.desde && params.hasta) {
           r = await listarReservasDe({ repo: deps.repo, sesion, usuarioId: params.usuario, desde: params.desde, hasta: params.hasta });
         } else {

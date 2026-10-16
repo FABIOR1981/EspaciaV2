@@ -160,16 +160,16 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
    - Para leer reservas antiguas de Google Calendar, el `id` se reconstruye desde el email guardado en el evento: `id = parte antes de la @`, comparando sin distinguir mayúsculas.
    - Que dos usuarios elijan la misma contraseña es aceptable. El hash con sal protege ante una filtración del archivo, no obliga a que las contraseñas sean distintas.
 3. **Migración:** un script de una sola vez convierte el `usuarios.json` actual. El login de V2 acepta el hash viejo una sola vez y lo reemplaza por el nuevo con sal.
-4. **Clave inicial:** en V2 es aleatoria, con cambio obligatorio en el primer ingreso (`requiereCambioPass`).
+4. **Clave inicial (revisada el 15/10/2026):** ver la decisión 24. Siempre con cambio obligatorio en el primer ingreso (`requiereCambioPass`).
 5. **Convención de nombres:** los archivos que hablan con Google llevan `google_` delante y los que hablan con GitHub llevan `github_`. Solo esos pueden usar la red; el resto es lógica pura. Las variables de Netlify siguen `ESPACIAV2_<SERVICIO>_<DATO>` (por ejemplo `ESPACIAV2_GOOGLE_CALENDARIO_ID`, `ESPACIAV2_GITHUB_TOKEN`).
 6. **Visibilidad en la grilla:** un usuario común ve sus propias reservas completas y, cuando la reserva es de otra persona o es un bloqueo, solo ve **"Ocupado"** (sin nombre, sin observación, sin identificador). Admin y gestor ven todo el detalle. Las reservas canceladas no aparecen en la grilla; solo admin y gestor pueden pedirlas (informes). Un usuario solo puede pedir sus propias reservas; admin y gestor pueden pedir las de otra persona.
 7. **Mismo repo `bd` y mismo Google Calendar que producción**, pero durante el desarrollo `ESPACIAV2_MODO=pruebas` usa un calendario de pruebas aparte.
 
 ---
 
-## 13. Implementación (v0.6.0: servidor y primera pantalla)
+## 13. Implementación (v0.8.0)
 
-**Archivos y qué cubren** (172 pruebas automáticas del servidor, más un recorrido de 15 pasos en un navegador real; corren solas en GitHub Actions en cada subida):
+**Archivos y qué cubren** (185 pruebas automáticas del servidor, más un recorrido de 15 pasos en un navegador real; corren solas en GitHub Actions en cada subida):
 
 | Archivo | Contenido |
 |---|---|
@@ -195,7 +195,11 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 **También cubiertos ahora:** 9 (después de crear se vuelve a verificar el día; si dos personas reservan a la vez, se queda la que llegó primero y la otra se deshace), 11 (un solo módulo de Google), y el bloqueo múltiple es "todo o nada" (si una creación falla o choca, no queda ninguno).
 **Hallazgos 6 y 7 en proceso:** contraseñas con sal y sesión firmada ya están hechas; el secreto de sesión no tiene valor por defecto (sección 13, supuesto 8) y el token de GitHub nunca viene del navegador.
 **Pantalla (frontend), primera versión:** ingreso, cambio de clave obligatorio, agenda del día con reserva y cancelación, y "Mis reservas". Funciona en notebook (los 5 consultorios en columnas) y en celular (un consultorio por vez, navegación abajo). El encabezado de consultorios queda pegado al hacer scroll (el problema que dio origen a V2). Seguridad del navegador: no se usan scripts ni estilos incrustados (política de contenido estricta en `netlify.toml`), y los textos de otras personas nunca se insertan como HTML.
-**Pendientes de implementar:** el respaldo diario (`respaldo.js`, programado) y, en la pantalla, las herramientas de gestión: bloqueos y administración de usuarios.
+**Herramientas de gestión (solo administración y gestión), en la sección "Gestión" de la pantalla:**
+- *Bloqueos:* elegir día, consultorios (uno, varios o "todos"), horario o "todo el día" (usa el horario real de ese día) y un motivo opcional. Se ve la lista de bloqueos vigentes de las próximas 12 semanas y cada uno se puede quitar. Si el horario choca con una reserva existente, se rechaza y no se crea ninguno. Ruta nueva: `GET /api/bloqueos?desde=&hasta=`.
+- *Usuarios:* lista con buscador, alta, edición (nombre, perfil, consultorios, activo) y reinicio de clave. La clave temporal se muestra una sola vez, con botón para copiarla. El gestor solo ve acciones sobre usuarios comunes; nadie puede cambiarse el perfil ni desactivarse a sí mismo.
+
+**Pendientes de implementar:** el respaldo diario (`respaldo.js`, programado), el límite de intentos de ingreso y **mover una reserva** (ver propuesta abajo).
 
 ### Rutas HTTP
 
@@ -206,6 +210,7 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 | `/api/clave` | POST `{claveActual, claveNueva}` | cualquiera con sesión | Única ruta que funciona mientras deba cambiar su clave |
 | `/api/reservas` | GET `?fecha=` | con sesión | Grilla del día (los usuarios ven "Ocupado" en lo ajeno) |
 | `/api/reservas` | GET `?desde=&hasta=[&usuario=]` | con sesión | Mis reservas; admin y gestor pueden pedir las de otra persona |
+| `/api/reservas` | GET `?desde=&hasta=&todas=1` | admin y gestor | Todas las reservas próximas |
 | `/api/reservas` | POST `{consultorio, fecha, hora, duracion, paraUsuario?}` | con sesión | Crear reserva |
 | `/api/reservas` | DELETE `?id=` | con sesión | Cancelar (también sirve para deshacer un bloqueo) |
 | `/api/bloqueos` | POST `{consultorios, fecha, horaInicio?, horaFin?, diaCompleto?, observacion?}` | admin y gestor | Crear bloqueos, todo o nada |
@@ -237,7 +242,7 @@ Cada uno vive en un solo lugar del código; cambiarlo es una edición pequeña.
 15. **Identificadores de usuario:** solo letras y números, de 3 a 20 caracteres, sin espacios (todos los usuarios actuales cumplen: 4 a 10). El alta no permite repetirlos sin distinguir mayúsculas.
 16. **Nadie puede desactivarse ni cambiarse el rol a sí mismo.** Además impide dejar el sistema sin administradores. El gestor no puede modificar, reiniciar ni crear gestores o administradores.
 17. **Edición de usuarios:** solo se pueden cambiar nombre, rol, preferencias de consultorio y estado activo. Cualquier otro campo enviado (por ejemplo la contraseña) se ignora.
-18. **Clave temporal:** se muestra una sola vez al crear o reiniciar, no se guarda en ningún lado, y obliga a cambiarla en el primer ingreso.
+18. **Clave inicial:** se muestra una sola vez al crear o reiniciar, no se guarda en ningún lado, y obliga a cambiarla en el primer ingreso (ver decisión 24 para su forma y vigencia).
 19. **Migración realizada con tu archivo real:** 58 usuarios (54 `usuario`, 2 `gestor`, 2 `admin`; 56 activos). 45 quedan con `requiereCambioPass = true`: los 44 que seguían con la clave inicial más 1 que ya estaba marcado.
 
 20. **Sesión revocable de inmediato (adoptado, a confirmar):** en cada petición el servidor lee el archivo de usuarios; si la persona fue dada de baja, la sesión deja de servir en ese momento, y se usa su rol actual. Costo: una lectura a GitHub por petición.
@@ -250,3 +255,18 @@ Cada uno vive en un solo lugar del código; cambiarlo es una edición pequeña.
 
 
 **Pendiente de verificar en Netlify:** a qué hora corre realmente el backup (sección 7), porque de eso depende la regla de que el gestor cierre "ayer" hasta las 02:00.
+
+---
+
+## 14. Propuesta: mover una reserva (a decidir)
+
+**Reglas (mismas que la cancelación):**
+- Usuario común: solo reservas propias, con más de 24 horas de antelación respecto del **horario original** (si `reglaFinDeSemana` está activa, el lunes exige 72 h).
+- Admin y gestor: cualquier reserva, sin límite de antelación; no se puede mover una reserva que ya pasó.
+- El **horario nuevo** sigue las reglas de una reserva nueva para quien la pide (día laborable, dentro del horario, hasta 12 semanas, sin superposiciones).
+
+**Comportamiento:** se revisa el lugar nuevo antes de soltar el anterior; si el nuevo está ocupado, la reserva original queda intacta.
+
+**Registro (confirmado):** moverla dentro del mismo evento del calendario, con la marca "movida desde ...", en lugar de cancelar y crear otra. Así los informes de canceladas no incluyen movimientos que no son cancelaciones.
+
+**Cuándo (recomendado):** después de las herramientas de gestión y antes de abrir V2 a los usuarios.

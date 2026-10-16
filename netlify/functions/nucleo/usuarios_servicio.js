@@ -8,6 +8,13 @@
  *
  * Todas las funciones devuelven { ok: true, ... } o { ok: false, codigo, mensaje, estado }.
  * Nunca se devuelve el hash de la contraseña.
+ *
+ * CLAVE INICIAL (decisión de Fabio): los usuarios comunes reciben "<usuario>1234567", fácil de dictar y de recordar.
+ * Como es predecible, VENCE a los 7 días (reglas.claveInicial.diasDeVigencia). Gestión y administración reciben una
+ * clave aleatoria que no vence por fecha. Las cuentas migradas de Espacia que siguen con la clave inicial vencen en
+ * reglas.claveInicial.vencimientoLegado. Una clave inicial vencida no permite ingresar: hay que reiniciarla.
+ *
+ * `ahora` es { fecha: 'AAAA-MM-DD', minutos } en hora de Montevideo (lo entrega la capa HTTP).
  */
 
 const {
@@ -17,6 +24,7 @@ const {
   mismoUsuario,
 } = require('./permisos');
 const contrasenas = require('./contrasenas');
+const { sumarDias } = require('./reglas_de_negocio');
 
 // SUPUESTO (a confirmar): identificadores solo con letras y números, de 3 a 20 caracteres
 // (todos los usuarios actuales de Espacia cumplen: 4 a 10 caracteres alfanuméricos).
@@ -45,7 +53,29 @@ async function conErroresDeNegocio(accion) {
   }
 }
 
-function vistaUsuario(u) {
+// ---------- Clave inicial: vigencia ----------
+
+/**
+ * Último día en que sirve la clave inicial de un usuario, o null si no vence.
+ * - Sin obligación de cambiar la clave: null.
+ * - claveInicialVenceEl === null: clave aleatoria que no vence por fecha.
+ * - claveInicialVenceEl con fecha: esa fecha (inclusive).
+ * - sin el campo (cuentas migradas de Espacia): la fecha general de reglas.claveInicial.vencimientoLegado.
+ */
+function ultimoDiaClaveInicial(reglas, usuario) {
+  if (!usuario.requiereCambioPass) return null;
+  if (usuario.claveInicialVenceEl === null) return null;
+  if (typeof usuario.claveInicialVenceEl === 'string') return usuario.claveInicialVenceEl;
+  return (reglas.claveInicial && reglas.claveInicial.vencimientoLegado) || null;
+}
+
+function claveInicialVencida(reglas, usuario, ahora) {
+  const ultimoDia = ultimoDiaClaveInicial(reglas, usuario);
+  return Boolean(ultimoDia) && ahora.fecha > ultimoDia;
+}
+
+function vistaUsuario(u, reglas, ahora) {
+  const hasta = ultimoDiaClaveInicial(reglas, u);
   return {
     id: u.id,
     nombre: u.nombre,
@@ -53,7 +83,20 @@ function vistaUsuario(u) {
     consPref: u.consPref,
     activo: u.activo,
     requiereCambioPass: u.requiereCambioPass,
+    claveInicialHasta: hasta,
+    claveInicialVencida: Boolean(hasta) && ahora.fecha > hasta,
   };
+}
+
+/** Clave inicial y vencimiento que corresponden a un perfil. */
+function nuevaClaveInicial(reglas, ahora, usuarioId, rol) {
+  if (rol === 'usuario') {
+    return {
+      claveTemporal: contrasenas.claveInicialSimple(usuarioId),
+      claveInicialVenceEl: sumarDias(ahora.fecha, reglas.claveInicial.diasDeVigencia),
+    };
+  }
+  return { claveTemporal: contrasenas.generarClaveTemporal(), claveInicialVenceEl: null };
 }
 
 function buscar(lista, id) {
@@ -81,9 +124,10 @@ const CREDENCIALES_INVALIDAS = () => fallo('CREDENCIALES_INVALIDAS', 'Usuario o 
 
 /**
  * Ingreso. El mensaje es el mismo si el usuario no existe, está inactivo o la clave es incorrecta,
- * y el tiempo de respuesta tampoco los distingue.
+ * y el tiempo de respuesta tampoco los distingue. Solo quien acierta la clave inicial vencida
+ * recibe un aviso específico, para saber que debe pedir un reinicio.
  */
-async function autenticar({ almacen, id, clave }) {
+async function autenticar({ reglas, almacen, id, clave, ahora }) {
   if (typeof id !== 'string' || typeof clave !== 'string' || !id.trim() || !clave) {
     await contrasenas.verificacionFalsa(clave);
     return CREDENCIALES_INVALIDAS();
@@ -98,6 +142,10 @@ async function autenticar({ almacen, id, clave }) {
 
   const verificacion = await contrasenas.verificarClave(clave, usuario.contrasena);
   if (!verificacion.ok || !usuario.activo) return CREDENCIALES_INVALIDAS();
+
+  if (claveInicialVencida(reglas, usuario, ahora)) {
+    return fallo('CLAVE_INICIAL_VENCIDA', 'Tu clave inicial venció. Pedile a la administración que la reinicie.', 403);
+  }
 
   if (verificacion.necesitaActualizar) {
     // Reemplaza el hash antiguo por uno con sal. Si falla, igual se permite el ingreso.
@@ -140,16 +188,18 @@ async function validarSesionContraUsuarios({ almacen, sesion }) {
 
 // ---------- Administración de usuarios ----------
 
-async function listarUsuarios({ almacen, sesion }) {
+async function listarUsuarios({ reglas, almacen, sesion, ahora }) {
   if (!puedeGestionarUsuarios(sesion.rol)) return sinPermiso();
   const usuarios = await almacen.leer();
   return {
     ok: true,
-    usuarios: usuarios.map(vistaUsuario).sort((a, b) => a.id.localeCompare(b.id, 'es', { sensitivity: 'base' })),
+    usuarios: usuarios
+      .map((u) => vistaUsuario(u, reglas, ahora))
+      .sort((a, b) => a.id.localeCompare(b.id, 'es', { sensitivity: 'base' })),
   };
 }
 
-async function crearUsuario({ reglas, almacen, sesion, datos }) {
+async function crearUsuario({ reglas, almacen, sesion, datos, ahora }) {
   if (!puedeGestionarUsuarios(sesion.rol)) return sinPermiso();
 
   const id = typeof datos.id === 'string' ? datos.id.trim() : '';
@@ -171,7 +221,7 @@ async function crearUsuario({ reglas, almacen, sesion, datos }) {
     if (!consPref) return fallo('PREFERENCIAS_INVALIDAS', 'Las preferencias de consultorio no son válidas.');
   }
 
-  const claveTemporal = contrasenas.generarClaveTemporal();
+  const { claveTemporal, claveInicialVenceEl } = nuevaClaveInicial(reglas, ahora, id, datos.rol);
   const usuario = {
     id,
     nombre,
@@ -179,6 +229,7 @@ async function crearUsuario({ reglas, almacen, sesion, datos }) {
     consPref,
     activo: true,
     requiereCambioPass: true,
+    claveInicialVenceEl,
     contrasena: await contrasenas.generarHash(claveTemporal),
   };
 
@@ -187,13 +238,13 @@ async function crearUsuario({ reglas, almacen, sesion, datos }) {
       if (buscar(lista, id) !== -1) throw new ErrorDeNegocio('USUARIO_REPETIDO', 'Ya existe un usuario con ese identificador.', 409);
       return [...lista, usuario];
     }, `Alta del usuario ${id} por ${sesion.id}`);
-    // La clave temporal se muestra una sola vez; no se guarda en ningún lado.
-    return { ok: true, usuario: vistaUsuario(usuario), claveTemporal };
+    // La clave inicial se muestra una sola vez; no se guarda en ningún lado.
+    return { ok: true, usuario: vistaUsuario(usuario, reglas, ahora), claveTemporal, venceEl: claveInicialVenceEl };
   });
 }
 
 /** Solo se pueden cambiar: nombre, rol, consPref y activo. Cualquier otro campo se ignora. */
-async function editarUsuario({ reglas, almacen, sesion, id, cambios }) {
+async function editarUsuario({ reglas, almacen, sesion, id, cambios, ahora }) {
   if (!puedeGestionarUsuarios(sesion.rol)) return sinPermiso();
 
   const nuevos = {};
@@ -237,17 +288,27 @@ async function editarUsuario({ reglas, almacen, sesion, id, cambios }) {
       }
 
       editado = { ...actual, ...nuevos };
+      // Si alguien todavía no estrenó su clave inicial simple y pasa a gestión o administración,
+      // esa clave predecible deja de servir: hay que reiniciarla para recibir una aleatoria.
+      if (cambiaSuRol && rolFinal !== 'usuario' && actual.requiereCambioPass && actual.claveInicialVenceEl !== null) {
+        editado.claveInicialVenceEl = sumarDias(ahora.fecha, -1);
+      }
       lista[i] = editado;
       return lista;
     }, `Edición del usuario ${id} por ${sesion.id}`);
-    return { ok: true, usuario: vistaUsuario(editado) };
+    return { ok: true, usuario: vistaUsuario(editado, reglas, ahora) };
   });
 }
 
-async function reiniciarClave({ almacen, sesion, id }) {
+async function reiniciarClave({ reglas, almacen, sesion, id, ahora }) {
   if (!puedeGestionarUsuarios(sesion.rol)) return sinPermiso();
 
-  const claveTemporal = contrasenas.generarClaveTemporal();
+  // El tipo de clave depende del perfil de la persona; se lee antes y se vuelve a comprobar al guardar.
+  const usuarios = await almacen.leer();
+  const objetivo = usuarios[buscar(usuarios, id)];
+  if (!objetivo) return fallo('USUARIO_NO_ENCONTRADO', 'El usuario no existe.', 404);
+
+  const { claveTemporal, claveInicialVenceEl } = nuevaClaveInicial(reglas, ahora, objetivo.id, objetivo.rol);
   const nuevoHash = await contrasenas.generarHash(claveTemporal);
 
   return conErroresDeNegocio(async () => {
@@ -258,10 +319,13 @@ async function reiniciarClave({ almacen, sesion, id }) {
       if (!puedeAsignarRol(sesion.rol, lista[i].rol, lista[i].rol)) {
         throw new ErrorDeNegocio('NO_PUEDE_ASIGNAR_ROL', 'No tiene permiso para modificar a ese usuario.', 403);
       }
-      lista[i] = { ...lista[i], contrasena: nuevoHash, requiereCambioPass: true };
+      if (lista[i].rol !== objetivo.rol) {
+        throw new ErrorDeNegocio('CAMBIO_CONCURRENTE', 'El perfil de la persona cambió mientras se reiniciaba. Intente de nuevo.', 409);
+      }
+      lista[i] = { ...lista[i], contrasena: nuevoHash, requiereCambioPass: true, claveInicialVenceEl };
       return lista;
     }, `Reinicio de clave del usuario ${id} por ${sesion.id}`);
-    return { ok: true, claveTemporal };
+    return { ok: true, claveTemporal, venceEl: claveInicialVenceEl };
   });
 }
 
@@ -289,7 +353,8 @@ async function cambiarMiClave({ almacen, sesion, claveActual, claveNueva }) {
       if (i === -1 || lista[i].contrasena !== hashViejo) {
         throw new ErrorDeNegocio('CAMBIO_CONCURRENTE', 'La clave cambió mientras se guardaba. Intente de nuevo.', 409);
       }
-      lista[i] = { ...lista[i], contrasena: nuevoHash, requiereCambioPass: false };
+      const { claveInicialVenceEl, ...resto } = lista[i];
+      lista[i] = { ...resto, contrasena: nuevoHash, requiereCambioPass: false };
       return lista;
     }, `Cambio de clave del usuario ${usuario.id}`);
     return { ok: true };
@@ -304,4 +369,5 @@ module.exports = {
   editarUsuario,
   reiniciarClave,
   cambiarMiClave,
+  ultimoDiaClaveInicial,
 };

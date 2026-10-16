@@ -229,6 +229,20 @@ test('un usuario no puede reservar a nombre de otro; la gestora sí, y el titula
   assert.equal(baja.estado, 404);
 });
 
+test('GET con todas=1: administración y gestión ven las reservas de todos; el usuario común, no', async () => {
+  const { llamar, ingresarComo } = await crearEntorno();
+  const ana = await ingresarComo('AdrianaPR', 'ClaveAdriana1');
+  const luis = await ingresarComo('Luis', 'ClaveLuis1');
+  const gestora = await ingresarComo('Gestora', 'ClaveGestora1');
+  await llamar('reservas', { metodo: 'POST', token: ana, cuerpo: RESERVA });
+  await llamar('reservas', { metodo: 'POST', token: luis, cuerpo: { ...RESERVA, consultorio: 3 } });
+
+  const rango = { desde: '2026-10-15', hasta: '2026-10-31' };
+  assert.equal((await llamar('reservas', { params: { ...rango, todas: '1' }, token: gestora })).cuerpo.reservas.length, 2);
+  assert.equal((await llamar('reservas', { params: rango, token: gestora })).cuerpo.reservas.length, 0); // sin "todas", solo las propias
+  assert.equal((await llamar('reservas', { params: { ...rango, todas: '1' }, token: luis })).estado, 403);
+});
+
 test('cancelar: el titular sí, otro usuario no; "mis reservas" solo muestra las propias', async () => {
   const { llamar, ingresarComo } = await crearEntorno();
   const ana = await ingresarComo('AdrianaPR', 'ClaveAdriana1');
@@ -307,6 +321,8 @@ test('usuarios: alta con clave temporal que sirve para ingresar y obliga a cambi
   const alta = await llamar('usuarios', { metodo: 'POST', token: admin, cuerpo: { id: 'Maria', nombre: 'María Gómez', rol: 'usuario' } });
   assert.equal(alta.estado, 201);
   assert.equal(alta.cuerpo.usuario.requiereCambioPass, true);
+  assert.equal(alta.cuerpo.claveTemporal, 'Maria1234567'); // clave inicial simple de usuarios comunes
+  assert.equal(alta.cuerpo.venceEl, '2026-10-22');
   const ingreso = await llamar('ingresar', { metodo: 'POST', cuerpo: { usuario: 'Maria', clave: alta.cuerpo.claveTemporal } });
   assert.equal(ingreso.estado, 200);
   assert.equal(ingreso.cuerpo.requiereCambioPass, true);

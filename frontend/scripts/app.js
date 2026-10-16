@@ -111,10 +111,11 @@ function entrarALaApp() {
   limpiarVista();
 
   const principal = el('main', { clase: 'principal', id: 'principal' });
+  const etiquetaReservas = sesion.rol === 'admin' || sesion.rol === 'gestor' ? 'Reservas' : 'Mis reservas';
   const enlaceAgenda = el('a', { href: '#agenda' }, 'Agenda');
-  const enlaceMisReservas = el('a', { href: '#mis-reservas' }, 'Mis reservas');
+  const enlaceMisReservas = el('a', { href: '#mis-reservas' }, etiquetaReservas);
   const inferiorAgenda = el('a', { href: '#agenda' }, icono('agenda'), 'Agenda');
-  const inferiorMis = el('a', { href: '#mis-reservas' }, icono('lista'), 'Mis reservas');
+  const inferiorMis = el('a', { href: '#mis-reservas' }, icono('lista'), etiquetaReservas);
 
   const administrativo = sesion.rol === 'admin' || sesion.rol === 'gestor';
   const enlaceGestion = administrativo ? el('a', { href: '#gestion' }, 'Gestión') : null;

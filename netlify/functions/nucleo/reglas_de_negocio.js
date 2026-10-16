@@ -32,6 +32,11 @@ function diasDesdeEpoca(fecha) {
   return Date.UTC(a, m - 1, d) / 86400000;
 }
 
+function sumarDias(fecha, cantidad) {
+  const [a, m, d] = fecha.split('-').map(Number);
+  return new Date(Date.UTC(a, m - 1, d + cantidad)).toISOString().slice(0, 10);
+}
+
 /** 0 = domingo ... 6 = sábado (calculado sobre el texto, sin zona horaria). */
 function diaDeSemana(fecha) {
   const [a, m, d] = fecha.split('-').map(Number);
@@ -269,6 +274,7 @@ function haySuperposicion(eventos, { consultorio, fecha, inicioMin, finMin }) {
 
 module.exports = {
   fechaValida,
+  sumarDias,
   diaDeSemana,
   horaAMinutos,
   minutosAHora,

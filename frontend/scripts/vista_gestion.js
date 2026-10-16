@@ -183,6 +183,13 @@ export function crearVistaGestion({ api, reglas, sesion }) {
 
   // ====================== USUARIOS ======================
 
+  function etiquetaClave(u) {
+    if (!u.requiereCambioPass) return null;
+    if (u.claveInicialVencida) return el('span', { clase: 'etiqueta etiqueta-baja' }, 'Clave inicial vencida: reiniciar');
+    const hasta = u.claveInicialHasta ? ` (hasta el ${fechaLarga(u.claveInicialHasta)})` : '';
+    return el('span', { clase: 'etiqueta etiqueta-pendiente' }, `Debe cambiar la clave${hasta}`);
+  }
+
   async function dibujarUsuarios() {
     const buscador = el('input', { id: 'usuarios-buscar', type: 'text', placeholder: 'Buscar por nombre o usuario', autocomplete: 'off', 'aria-label': 'Buscar usuario' });
     const lista = el('div', { clase: 'usuarios-lista' });
@@ -214,7 +221,7 @@ export function crearVistaGestion({ api, reglas, sesion }) {
                 { clase: 'etiquetas' },
                 el('span', { clase: `etiqueta etiqueta-${u.rol}` }, etiquetaRol(u.rol)),
                 u.activo ? null : el('span', { clase: 'etiqueta etiqueta-baja' }, 'Inactivo'),
-                u.requiereCambioPass ? el('span', { clase: 'etiqueta etiqueta-pendiente' }, 'Debe cambiar la clave') : null,
+                etiquetaClave(u),
                 el('span', { clase: 'etiqueta' }, `Consultorios ${u.consPref.join(', ')}`)
               )
             ),

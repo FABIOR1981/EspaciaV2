@@ -142,3 +142,25 @@ test('listar bloqueos: un usuario común no puede, y se validan las fechas', asy
   assert.equal((await v.listarBloqueos({ repo, sesion: ADMIN, desde: '2026-10-31', hasta: '2026-10-15' })).codigo, 'RANGO_INVALIDO');
   assert.equal((await v.listarBloqueos({ repo, sesion: ADMIN, desde: '2026-01-01', hasta: '2027-12-31' })).codigo, 'RANGO_DEMASIADO_GRANDE');
 });
+
+// ---------- Todas las reservas (admin y gestor) ----------
+
+test('todas las reservas: admin y gestor ven las de todas las personas, sin bloqueos ni canceladas, ordenadas', async () => {
+  const repo = await repoConDatos();
+  for (const sesion of [GESTOR, ADMIN]) {
+    const r = await v.listarTodasLasReservas({ repo, sesion, desde: '2026-10-15', hasta: '2026-10-31' });
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.reservas.map((x) => x.consultorio), [1, 2]); // la de C3 es bloqueo y la de C4 está cancelada
+    assert.deepEqual(r.reservas.map((x) => x.titularNombre), ['Adriana Perla R', 'Luis Pérez']);
+    assert.ok(r.reservas.every((x) => x.id && x.creadaPor));
+  }
+});
+
+test('todas las reservas: un usuario común no puede pedirlas', async () => {
+  const repo = await repoConDatos();
+  const r = await v.listarTodasLasReservas({ repo, sesion: LUIS, desde: '2026-10-15', hasta: '2026-10-31' });
+  assert.equal(r.codigo, 'NO_PUEDE_VER_RESERVAS_AJENAS');
+  assert.equal(r.estado, 403);
+  assert.equal((await v.listarTodasLasReservas({ repo, sesion: ADMIN, desde: 'x', hasta: '2026-10-31' })).codigo, 'FECHA_INVALIDA');
+  assert.equal((await v.listarTodasLasReservas({ repo, sesion: ADMIN, desde: '2026-01-01', hasta: '2027-12-31' })).codigo, 'RANGO_DEMASIADO_GRANDE');
+});

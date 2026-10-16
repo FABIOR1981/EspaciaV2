@@ -14,29 +14,30 @@ exports.crearHandler = (dependencias) =>
   crearManejador({
     dependencias,
     metodos: {
-      GET: async ({ deps, sesion }) => {
-        const r = await servicio.listarUsuarios({ almacen: deps.almacen, sesion });
+      GET: async ({ deps, sesion, ahora }) => {
+        const r = await servicio.listarUsuarios({ reglas: deps.reglas, almacen: deps.almacen, sesion, ahora });
         return r.ok ? responder(200, { usuarios: r.usuarios }) : responderError(r);
       },
 
-      POST: async ({ deps, sesion, params, cuerpo }) => {
+      POST: async ({ deps, sesion, params, cuerpo, ahora }) => {
         if (params.accion === 'reiniciar-clave') {
           if (!params.id) return responderError({ estado: 400, codigo: 'PARAMETROS_INVALIDOS', mensaje: 'Indique el "id" del usuario.' });
-          const r = await servicio.reiniciarClave({ almacen: deps.almacen, sesion, id: params.id });
-          return r.ok ? responder(200, { claveTemporal: r.claveTemporal }) : responderError(r);
+          const r = await servicio.reiniciarClave({ reglas: deps.reglas, almacen: deps.almacen, sesion, id: params.id, ahora });
+          return r.ok ? responder(200, { claveTemporal: r.claveTemporal, venceEl: r.venceEl }) : responderError(r);
         }
         const r = await servicio.crearUsuario({
           reglas: deps.reglas,
           almacen: deps.almacen,
           sesion,
           datos: { id: cuerpo.id, nombre: cuerpo.nombre, rol: cuerpo.rol, consPref: cuerpo.consPref },
+          ahora,
         });
-        return r.ok ? responder(201, { usuario: r.usuario, claveTemporal: r.claveTemporal }) : responderError(r);
+        return r.ok ? responder(201, { usuario: r.usuario, claveTemporal: r.claveTemporal, venceEl: r.venceEl }) : responderError(r);
       },
 
-      PATCH: async ({ deps, sesion, params, cuerpo }) => {
+      PATCH: async ({ deps, sesion, params, cuerpo, ahora }) => {
         if (!params.id) return responderError({ estado: 400, codigo: 'PARAMETROS_INVALIDOS', mensaje: 'Indique el "id" del usuario.' });
-        const r = await servicio.editarUsuario({ reglas: deps.reglas, almacen: deps.almacen, sesion, id: params.id, cambios: cuerpo });
+        const r = await servicio.editarUsuario({ reglas: deps.reglas, almacen: deps.almacen, sesion, id: params.id, cambios: cuerpo, ahora });
         return r.ok ? responder(200, { usuario: r.usuario }) : responderError(r);
       },
     },
