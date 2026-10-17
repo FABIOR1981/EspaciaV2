@@ -12,7 +12,16 @@ const INTERVALO_ACTUALIZACION_MS = 60000;
 export function crearVistaAgenda({ api, reglas, sesion }) {
   const administrativo = sesion.rol === 'admin' || sesion.rol === 'gestor';
   const totalSalas = reglas.espacios.cantidad;
-  const salas = Array.from({ length: totalSalas }, (_, i) => i + 1);
+  const todasLasSalas = Array.from({ length: totalSalas }, (_, i) => i + 1);
+  // Espacios habilitados del usuario (sesiones abiertas con la versión anterior traían "consPref").
+  const habilitadas = (Array.isArray(sesion.espHabil) && sesion.espHabil.length ? sesion.espHabil : sesion.consPref) || todasLasSalas;
+
+  /** Administración y gestión ven todos los consultorios; un usuario, los habilitados y los de sus propias reservas del día. */
+  function salasDelDia() {
+    if (administrativo) return todasLasSalas;
+    const propias = reservas.filter((r) => r.propia === true).map((r) => r.consultorio);
+    return todasLasSalas.filter((n) => habilitadas.includes(n) || propias.includes(n));
+  }
   const consulta = window.matchMedia('(max-width: 760px)');
   const hoy = () => ahoraEn(reglas.zonaHoraria);
 
@@ -20,7 +29,7 @@ export function crearVistaAgenda({ api, reglas, sesion }) {
   let reservas = [];
   let cargando = true;
   let error = null;
-  let salaActiva = (sesion.consPref && sesion.consPref[0]) || 1;
+  let salaActiva = habilitadas[0] || 1;
   let activa = false;
   let temporizador = null;
   let idPeticion = 0;
@@ -149,6 +158,8 @@ export function crearVistaAgenda({ api, reglas, sesion }) {
     }
 
     const movil = consulta.matches;
+    const salas = salasDelDia();
+    if (!salas.includes(salaActiva)) salaActiva = salas[0];
     const visibles = movil ? [salaActiva] : salas;
     const tramo = reglas.tramoMinutos;
     const filas = Math.ceil((horario.fin - horario.inicio) / tramo);

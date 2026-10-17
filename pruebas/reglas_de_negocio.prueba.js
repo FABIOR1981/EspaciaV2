@@ -89,6 +89,21 @@ test('reserva: campos inválidos', () => {
   assert.equal(codigoDe(rn.validarNuevaReserva(reglas, reservaBase({ rol: 'visitante' }))), 'ROL_INVALIDO');
 });
 
+// ---------- Reservas: espacios habilitados ----------
+
+test('un usuario solo reserva en sus espacios habilitados; admin y gestor pueden en cualquiera', () => {
+  const habilitados = { espHabil: [2, 3] };
+  assert.equal(codigoDe(rn.validarNuevaReserva(reglas, reservaBase({ ...habilitados, consultorio: 2 }))), 'OK');
+  const negado = rn.validarNuevaReserva(reglas, reservaBase({ ...habilitados, consultorio: 1 }));
+  assert.equal(negado.codigo, 'ESPACIO_NO_HABILITADO');
+  assert.equal(negado.estado, 403);
+  // Contingencia: gestión y administración reservan en cualquier espacio, aunque el usuario no lo tenga habilitado.
+  assert.equal(codigoDe(rn.validarNuevaReserva(reglas, reservaBase({ ...habilitados, consultorio: 1, rol: 'gestor', paraUsuarioId: 'AdrianaPR' }))), 'OK');
+  assert.equal(codigoDe(rn.validarNuevaReserva(reglas, reservaBase({ ...habilitados, consultorio: 5, rol: 'admin' }))), 'OK');
+  // Sin la lista (por ejemplo, un servicio interno), no se restringe.
+  assert.equal(codigoDe(rn.validarNuevaReserva(reglas, reservaBase({ consultorio: 1 }))), 'OK');
+});
+
 // ---------- Reservas: a nombre de quién ----------
 
 test('reserva: un usuario no puede reservar a nombre de otro; admin y gestor sí', () => {

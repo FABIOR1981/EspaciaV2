@@ -123,10 +123,10 @@ function validarFechaPermitida(reglas, rol, fecha, inicioMin, ahora) {
 
 /**
  * @param {object} reglas contenido de compartido/reglas.json
- * @param {object} datos { rol, usuarioId, paraUsuarioId?, consultorio, fecha, hora, duracion, ahora }
+ * @param {object} datos { rol, usuarioId, paraUsuarioId?, consultorio, fecha, hora, duracion, ahora, espHabil? }
  */
 function validarNuevaReserva(reglas, datos) {
-  const { rol, usuarioId, paraUsuarioId, consultorio, fecha, hora, duracion, ahora } = datos;
+  const { rol, usuarioId, paraUsuarioId, consultorio, fecha, hora, duracion, ahora, espHabil } = datos;
 
   if (!esRolValido(rol)) return error('ROL_INVALIDO', 'Rol no reconocido.', 403);
   if (!fechaValida(fecha)) return error('FECHA_INVALIDA', 'La fecha no es válida.');
@@ -139,6 +139,11 @@ function validarNuevaReserva(reglas, datos) {
   }
   if (!reglas.duracionesMinutos.includes(duracion)) {
     return error('DURACION_INVALIDA', 'La duración indicada no está permitida.');
+  }
+  // Un usuario común solo reserva en sus espacios habilitados; administración y gestión pueden hacerlo en cualquiera
+  // (por ejemplo, ante una contingencia).
+  if (!esAdministrativo(rol) && Array.isArray(espHabil) && !espHabil.includes(consultorio)) {
+    return error('ESPACIO_NO_HABILITADO', 'Ese consultorio no está habilitado para tu usuario.', 403);
   }
 
   if (paraUsuarioId && !mismoUsuario(usuarioId, paraUsuarioId) && !esAdministrativo(rol)) {
@@ -208,6 +213,31 @@ function validarCancelacion(reglas, datos) {
   }
 
   return { ok: true };
+}
+
+// ---------- Mover una reserva ----------
+
+/**
+ * Mover = soltar el horario original y tomar uno nuevo. Mismas reglas que una cancelación sobre el horario ORIGINAL
+ * (usuario: solo las suyas y con más de 24 h de antelación; admin y gestor: cualquiera, pero no una que ya pasó) y
+ * mismas reglas que una reserva nueva sobre el DESTINO, para quien la pide.
+ * @param {object} datos { rol, usuarioId, duenoId, original: {consultorio, fecha, inicioMin, finMin},
+ *                         destino: {consultorio, fecha, hora, duracion}, ahora, espHabil? }
+ */
+function validarMovimiento(reglas, datos) {
+  const { rol, usuarioId, duenoId, original, destino, ahora, espHabil } = datos;
+
+  const cancelacion = validarCancelacion(reglas, { rol, usuarioId, duenoId, fecha: original.fecha, hora: minutosAHora(original.inicioMin), ahora });
+  if (!cancelacion.ok) return { ...cancelacion, mensaje: cancelacion.mensaje.replace('cancelar', 'mover') };
+
+  const nueva = validarNuevaReserva(reglas, {
+    rol, usuarioId, paraUsuarioId: duenoId, consultorio: destino.consultorio, fecha: destino.fecha, hora: destino.hora, duracion: destino.duracion, ahora, espHabil,
+  });
+  if (!nueva.ok) return nueva;
+
+  const igual = original.consultorio === nueva.consultorio && original.fecha === nueva.fecha && original.inicioMin === nueva.inicioMin && original.finMin === nueva.finMin;
+  if (igual) return error('SIN_CAMBIOS', 'La reserva ya está en ese horario.');
+  return nueva;
 }
 
 // ---------- Bloqueos ----------
@@ -282,6 +312,7 @@ module.exports = {
   horarioDelDia,
   validarNuevaReserva,
   validarCancelacion,
+  validarMovimiento,
   validarBloqueo,
   haySuperposicion,
 };

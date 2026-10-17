@@ -27,7 +27,7 @@ test('convierte el formato de Espacia: id = nomUsu y descarta email, tipdocu y d
     id: 'AdrianaPR',
     nombre: 'Nombre AdrianaPR',
     rol: 'usuario',
-    consPref: [2, 3],
+    espHabil: [2, 3],
     activo: true,
     requiereCambioPass: false,
     contrasena: c.sha256Hex('AdrianaPRClavePropia9'),
@@ -55,13 +55,13 @@ test('quien sigue con la clave inicial (nomUsu + 1234567) queda obligado a cambi
   assert.equal(resumen.activosConClaveInicial, 1); // la cuenta inactiva no cuenta
 });
 
-test('filtra preferencias fuera de rango, ordena por id y arma el resumen', () => {
+test('filtra espacios fuera de rango, ordena por id y arma el resumen', () => {
   const { contenido, resumen } = m.migrarUsuarios(
     { a: antiguo('Zeta', { consPref: [1, 9, 2] }), b: antiguo('Alfa', { rol: 'admin' }), c: antiguo('Beta', { activo: false }) },
     OPC
   );
   assert.deepEqual(contenido.usuarios.map((x) => x.id), ['Alfa', 'Beta', 'Zeta']);
-  assert.deepEqual(contenido.usuarios.find((x) => x.id === 'Zeta').consPref, [1, 2]);
+  assert.deepEqual(contenido.usuarios.find((x) => x.id === 'Zeta').espHabil, [1, 2]);
   assert.deepEqual(resumen, { total: 3, activos: 2, porRol: { usuario: 2, gestor: 0, admin: 1 }, activosConClaveInicial: 0 });
 });
 

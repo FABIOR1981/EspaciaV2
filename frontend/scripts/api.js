@@ -42,6 +42,7 @@ export function crearApi({ obtenerToken, alSesionInvalida, alDebeCambiarClave })
     misReservas: (desde, hasta) => pedir(`/reservas?desde=${q(desde)}&hasta=${q(hasta)}`),
     todasLasReservas: (desde, hasta) => pedir(`/reservas?desde=${q(desde)}&hasta=${q(hasta)}&todas=1`),
     reservar: (datos) => pedir('/reservas', { metodo: 'POST', cuerpo: datos }),
+    mover: (id, destino) => pedir(`/reservas?id=${q(id)}`, { metodo: 'PATCH', cuerpo: destino }),
     cancelar: (id) => pedir(`/reservas?id=${q(id)}`, { metodo: 'DELETE' }),
     usuarios: () => pedir('/usuarios'),
     crearUsuario: (datos) => pedir('/usuarios', { metodo: 'POST', cuerpo: datos }),

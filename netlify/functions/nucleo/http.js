@@ -99,7 +99,7 @@ function crearManejador({ metodos, publico = false, permiteConCambioClave = fals
             mensaje: vencido ? 'La sesión venció. Vuelva a ingresar.' : 'Debe iniciar sesión.',
           });
         }
-        const vigente = await validarSesionContraUsuarios({ almacen: deps.almacen, sesion: verificado.sesion });
+        const vigente = await validarSesionContraUsuarios({ reglas: deps.reglas, almacen: deps.almacen, sesion: verificado.sesion });
         if (!vigente.ok) return responderError(vigente);
         if (vigente.requiereCambioPass && !permiteConCambioClave) {
           return responderError({ estado: 403, codigo: 'DEBE_CAMBIAR_CLAVE', mensaje: 'Debe cambiar su clave antes de continuar.' });

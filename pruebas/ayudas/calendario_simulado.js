@@ -30,6 +30,7 @@ function crearCalendarioSimulado() {
       evento.start = { dateTime: aISO(requestBody.start) };
       evento.end = { dateTime: aISO(requestBody.end) };
       evento.created = new Date(Date.UTC(2026, 9, 15, 12, 0, segundos)).toISOString();
+      evento.updated = evento.created;
       segundos += 1;
       eventos.set(evento.id, evento);
       return { data: structuredClone(evento) };
@@ -37,7 +38,12 @@ function crearCalendarioSimulado() {
     async patch({ eventId, requestBody }) {
       llamadas.push({ tipo: 'patch' });
       const evento = eventos.get(eventId);
-      Object.assign(evento, structuredClone(requestBody));
+      const cambios = structuredClone(requestBody);
+      if (cambios.start) cambios.start = { dateTime: aISO(cambios.start) };
+      if (cambios.end) cambios.end = { dateTime: aISO(cambios.end) };
+      Object.assign(evento, cambios);
+      evento.updated = new Date(Date.UTC(2026, 9, 15, 12, 0, segundos)).toISOString();
+      segundos += 1;
       return { data: structuredClone(evento) };
     },
     async delete({ eventId }) {

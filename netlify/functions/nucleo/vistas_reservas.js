@@ -44,6 +44,8 @@ function vistaCompleta(reserva) {
     observacion: reserva.observacion,
     cancelada: reserva.cancelada,
     canceladaPor: reserva.canceladaPor,
+    movidaDesde: reserva.movidaDesde,
+    movidaPor: reserva.movidaPor,
     ocupado: false,
   };
 }
@@ -59,6 +61,7 @@ function vistaPropia(reserva) {
     titularId: reserva.titularId,
     titularNombre: reserva.titularNombre,
     cancelada: reserva.cancelada,
+    movidaDesde: reserva.movidaDesde,
     ocupado: false,
     propia: true,
   };
@@ -80,7 +83,14 @@ function reservasParaSesion(reservas, sesion, { incluirCanceladas = false } = {}
 async function listarDiaParaSesion({ repo, sesion, fecha, incluirCanceladas = false }) {
   if (!esRolValido(sesion.rol)) return error('ROL_INVALIDO', 'Rol no reconocido.', 403);
   if (!fechaValida(fecha)) return error('FECHA_INVALIDA', 'La fecha no es válida.');
-  const reservas = await repo.listarDia(fecha);
+  let reservas = await repo.listarDia(fecha);
+  // Un usuario común no ve los consultorios que no tiene habilitados (tampoco como "Ocupado"). Sí ve los bloqueos de
+  // "todos" y sus propias reservas, aunque administración o gestión se las hayan hecho en otro consultorio.
+  if (!esAdministrativo(sesion.rol) && Array.isArray(sesion.espHabil)) {
+    reservas = reservas.filter(
+      (r) => r.consultorio === 0 || sesion.espHabil.includes(r.consultorio) || (r.tipo === 'reserva' && mismoUsuario(r.titularId, sesion.id))
+    );
+  }
   return { ok: true, reservas: reservasParaSesion(reservas, sesion, { incluirCanceladas }) };
 }
 

@@ -54,7 +54,7 @@ function mostrarIngreso(mensaje) {
       api,
       mensajeInicial: mensaje,
       alIngresar: (datos) => {
-        sesion = { token: datos.token, ...datos.sesion, consPref: datos.consPref, requiereCambioPass: datos.requiereCambioPass, venceEn: Date.now() + datos.venceEnSegundos * 1000 };
+        sesion = { token: datos.token, ...datos.sesion, espHabil: datos.espHabil, requiereCambioPass: datos.requiereCambioPass, venceEn: Date.now() + datos.venceEnSegundos * 1000 };
         almacenSesion.guardar(sesion);
         if (sesion.requiereCambioPass) mostrarCambioObligatorio();
         else entrarALaApp();

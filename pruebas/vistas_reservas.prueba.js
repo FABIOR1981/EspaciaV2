@@ -164,3 +164,30 @@ test('todas las reservas: un usuario común no puede pedirlas', async () => {
   assert.equal((await v.listarTodasLasReservas({ repo, sesion: ADMIN, desde: 'x', hasta: '2026-10-31' })).codigo, 'FECHA_INVALIDA');
   assert.equal((await v.listarTodasLasReservas({ repo, sesion: ADMIN, desde: '2026-01-01', hasta: '2027-12-31' })).codigo, 'RANGO_DEMASIADO_GRANDE');
 });
+
+// ---------- Espacios habilitados en la grilla ----------
+
+test('un usuario no ve los consultorios que no tiene habilitados, ni siquiera como "Ocupado"', async () => {
+  const repo = await repoConDatos(); // hay reservas en C1 (Ana), C2 (Luis), bloqueo en C3 y cancelada en C4
+  const sesion = { ...LUIS, espHabil: [2] };
+  const r = await v.listarDiaParaSesion({ repo, sesion, fecha: '2026-10-19' });
+  assert.deepEqual(r.reservas.map((x) => x.consultorio), [2]);
+});
+
+test('un usuario sí ve los bloqueos de "todos" y sus reservas hechas por gestión en un consultorio no habilitado', async () => {
+  const repo = await repoConDatos();
+  await repo.crear(reserva({ consultorio: 0, tipo: 'bloqueo', titularId: 'Gestora', titularNombre: 'Bloqueada', creadaPor: 'Gestora G', observacion: 'Feriado', inicioMin: 840, finMin: 900 }));
+  const sesion = { ...ANA, espHabil: [5] }; // Ana tiene una reserva en C1, que no es de sus espacios
+  const r = await v.listarDiaParaSesion({ repo, sesion, fecha: '2026-10-19' });
+  assert.ok(r.reservas.some((x) => x.consultorio === 1 && x.propia === true)); // su reserva de contingencia
+  const bloqueo = r.reservas.find((x) => x.consultorio === 0);
+  assert.equal(bloqueo.ocupado, true);
+  assert.equal(bloqueo.observacion, undefined);
+  assert.ok(!r.reservas.some((x) => x.consultorio === 2)); // la de Luis en un espacio no habilitado
+});
+
+test('admin y gestor ven todos los consultorios aunque tengan espacios habilitados definidos', async () => {
+  const repo = await repoConDatos();
+  const r = await v.listarDiaParaSesion({ repo, sesion: { ...GESTOR, espHabil: [5] }, fecha: '2026-10-19' });
+  assert.deepEqual(r.reservas.map((x) => x.consultorio).sort(), [1, 2, 3]);
+});

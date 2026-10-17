@@ -14,7 +14,7 @@ const u = {
   editarUsuario: (a) => servicio.editarUsuario({ ahora: AHORA, ...a }),
   reiniciarClave: (a) => servicio.reiniciarClave({ reglas, ahora: AHORA, ...a }),
   cambiarMiClave: servicio.cambiarMiClave,
-  validarSesionContraUsuarios: servicio.validarSesionContraUsuarios,
+  validarSesionContraUsuarios: (a) => servicio.validarSesionContraUsuarios({ reglas, ...a }),
 };
 const { crearAlmacenEnMemoria } = require('./ayudas/almacen_en_memoria');
 
@@ -23,7 +23,7 @@ const GESTOR = { id: 'Gestora', nombre: 'Gestora G', rol: 'gestor' };
 const ANA_SESION = { id: 'AdrianaPR', nombre: 'Adriana Perla R', rol: 'usuario' };
 
 async function datos() {
-  const base = (id, nombre, rol, clave, extra = {}) => ({ id, nombre, rol, consPref: [1, 2, 3, 4, 5], activo: true, requiereCambioPass: false, ...extra, _clave: clave });
+  const base = (id, nombre, rol, clave, extra = {}) => ({ id, nombre, rol, espHabil: [1, 2, 3, 4, 5], activo: true, requiereCambioPass: false, ...extra, _clave: clave });
   const crudos = [
     base('Admin', 'Administración', 'admin', 'ClaveAdmin1'),
     base('OtroAdmin', 'Otro Admin', 'admin', 'ClaveOtro1'),
@@ -75,7 +75,7 @@ test('entradas vacías o de tipo incorrecto no lanzan errores', async () => {
 
 test('con el hash antiguo de Espacia ingresa y se reemplaza por uno con sal', async () => {
   const almacen = crearAlmacenEnMemoria([
-    { id: 'Vieja', nombre: 'Clave Vieja', rol: 'usuario', consPref: [1], activo: true, requiereCambioPass: true, contrasena: c.sha256Hex('Vieja1234567') },
+    { id: 'Vieja', nombre: 'Clave Vieja', rol: 'usuario', espHabil: [1], activo: true, requiereCambioPass: true, contrasena: c.sha256Hex('Vieja1234567') },
   ]);
   const r = await u.autenticar({ almacen, id: 'Vieja', clave: 'Vieja1234567' });
   assert.equal(r.ok, true);
@@ -86,7 +86,7 @@ test('con el hash antiguo de Espacia ingresa y se reemplaza por uno con sal', as
 
 test('si falla el reemplazo del hash antiguo, igual se permite el ingreso', async () => {
   const almacen = crearAlmacenEnMemoria([
-    { id: 'Vieja', nombre: 'Clave Vieja', rol: 'usuario', consPref: [1], activo: true, requiereCambioPass: false, contrasena: c.sha256Hex('ClaveVieja9') },
+    { id: 'Vieja', nombre: 'Clave Vieja', rol: 'usuario', espHabil: [1], activo: true, requiereCambioPass: false, contrasena: c.sha256Hex('ClaveVieja9') },
   ]);
   almacen.actualizar = async () => { throw new Error('GitHub caído'); };
   assert.equal((await u.autenticar({ almacen, id: 'Vieja', clave: 'ClaveVieja9' })).ok, true);
@@ -121,7 +121,7 @@ test('el admin crea un usuario con clave inicial simple, que debe cambiar en el 
   assert.equal(r.ok, true);
   assert.equal(r.usuario.activo, true);
   assert.equal(r.usuario.requiereCambioPass, true);
-  assert.deepEqual(r.usuario.consPref, [1, 2, 3, 4, 5]);
+  assert.deepEqual(r.usuario.espHabil, [1, 2, 3, 4, 5]);
   assert.equal(r.usuario.contrasena, undefined);
   assert.equal(r.claveTemporal, 'NuevoUsu1234567'); // clave inicial simple de los usuarios comunes
   assert.equal(r.venceEl, '2026-10-22'); // vence a los 7 días
@@ -138,7 +138,7 @@ test('alta: valida identificador, nombre, rol y preferencias', async () => {
   assert.equal((await alta({ id: 'con espacio', nombre: 'X', rol: 'usuario' })).codigo, 'ID_INVALIDO');
   assert.equal((await alta({ id: 'Valido1', nombre: '  ', rol: 'usuario' })).codigo, 'NOMBRE_INVALIDO');
   assert.equal((await alta({ id: 'Valido1', nombre: 'X', rol: 'visitante' })).codigo, 'ROL_INVALIDO');
-  assert.equal((await alta({ id: 'Valido1', nombre: 'X', rol: 'usuario', consPref: [9] })).codigo, 'PREFERENCIAS_INVALIDAS');
+  assert.equal((await alta({ id: 'Valido1', nombre: 'X', rol: 'usuario', espHabil: [9] })).codigo, 'ESPACIOS_INVALIDOS');
   assert.equal(almacen.estado().length, 6);
 });
 
@@ -166,11 +166,11 @@ test('el admin edita nombre, rol, preferencias y estado; los campos ajenos se ig
   const hashAntes = porId(almacen, 'Luis').contrasena;
   const r = await u.editarUsuario({
     reglas, almacen, sesion: ADMIN, id: 'Luis',
-    cambios: { nombre: 'Luis P.', rol: 'gestor', consPref: [3, 1], activo: false, contrasena: 'hackeada', requiereCambioPass: true },
+    cambios: { nombre: 'Luis P.', rol: 'gestor', espHabil: [3, 1], activo: false, contrasena: 'hackeada', requiereCambioPass: true },
   });
   assert.equal(r.ok, true);
   const guardado = porId(almacen, 'Luis');
-  assert.deepEqual({ n: guardado.nombre, r: guardado.rol, c: guardado.consPref, a: guardado.activo }, { n: 'Luis P.', r: 'gestor', c: [1, 3], a: false });
+  assert.deepEqual({ n: guardado.nombre, r: guardado.rol, c: guardado.espHabil, a: guardado.activo }, { n: 'Luis P.', r: 'gestor', c: [1, 3], a: false });
   assert.equal(guardado.contrasena, hashAntes);
   assert.equal(guardado.requiereCambioPass, false);
 });
@@ -198,7 +198,7 @@ test('editar: usuario inexistente, usuario común y datos inválidos', async () 
   assert.equal((await u.editarUsuario({ reglas, almacen, sesion: ANA_SESION, id: 'Luis', cambios: { nombre: 'X' } })).estado, 403);
   assert.equal((await u.editarUsuario({ reglas, almacen, sesion: ADMIN, id: 'Luis', cambios: { rol: 'jefe' } })).codigo, 'ROL_INVALIDO');
   assert.equal((await u.editarUsuario({ reglas, almacen, sesion: ADMIN, id: 'Luis', cambios: { activo: 'si' } })).codigo, 'ACTIVO_INVALIDO');
-  assert.equal((await u.editarUsuario({ reglas, almacen, sesion: ADMIN, id: 'Luis', cambios: { consPref: [] } })).codigo, 'PREFERENCIAS_INVALIDAS');
+  assert.equal((await u.editarUsuario({ reglas, almacen, sesion: ADMIN, id: 'Luis', cambios: { espHabil: [] } })).codigo, 'ESPACIOS_INVALIDOS');
 });
 
 // ---------- Reiniciar clave ----------
@@ -327,8 +327,8 @@ test('reiniciar la clave de un administrador da una clave aleatoria', async () =
 
 test('cuentas migradas que siguen con la clave inicial vencen en la fecha general', async () => {
   const almacen = crearAlmacenEnMemoria([
-    { id: 'Vieja', nombre: 'Clave Vieja', rol: 'usuario', consPref: [1], activo: true, requiereCambioPass: true, contrasena: c.sha256Hex('Vieja1234567') },
-    { id: 'Lista', nombre: 'Ya Cambio', rol: 'usuario', consPref: [1], activo: true, requiereCambioPass: false, contrasena: c.sha256Hex('MiClavePropia9') },
+    { id: 'Vieja', nombre: 'Clave Vieja', rol: 'usuario', espHabil: [1], activo: true, requiereCambioPass: true, contrasena: c.sha256Hex('Vieja1234567') },
+    { id: 'Lista', nombre: 'Ya Cambio', rol: 'usuario', espHabil: [1], activo: true, requiereCambioPass: false, contrasena: c.sha256Hex('MiClavePropia9') },
   ]);
   const fechaGeneral = reglas.claveInicial.vencimientoLegado;
   assert.equal((await entrarCon({ fecha: fechaGeneral, minutos: 0 }, { almacen, id: 'Vieja', clave: 'Vieja1234567' })).ok, true);

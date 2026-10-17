@@ -2,21 +2,22 @@
 
 import { el, reemplazarHijos, rangoHoras, minutosAHora, fechaLarga, nombreSala, colorSala, horarioDelDia } from './utilidades.js';
 import { abrirHoja, mostrarAviso } from './hojas.js';
+import { abrirHojaMover } from './hojas_mover.js';
 
 const esAdministrativo = (rol) => rol === 'admin' || rol === 'gestor';
 
-function etiquetaSala(reglas, numero) {
+export function etiquetaSala(reglas, numero) {
   const punto = el('span', { clase: 'punto' });
   punto.style.setProperty('--sala-color', colorSala(numero));
   return el('span', { clase: 'sala-etiqueta' }, punto, nombreSala(reglas, numero));
 }
 
 /** Intervalos ya ocupados que afectan a un consultorio (un bloqueo de "todos" afecta a todos). */
-function ocupadosDe(reservas, consultorio) {
+export function ocupadosDe(reservas, consultorio) {
   return reservas.filter((r) => r.consultorio === consultorio || r.consultorio === 0).map((r) => [r.inicioMin, r.finMin]);
 }
 
-function cabeEn(ocupados, horario, ahora, esUsuario, fecha, inicio, duracion) {
+export function cabeEn(ocupados, horario, ahora, esUsuario, fecha, inicio, duracion) {
   const fin = inicio + duracion;
   if (inicio < horario.inicio || fin > horario.fin) return false;
   if (esUsuario && fecha === ahora.fecha && inicio < ahora.minutos) return false;
@@ -126,8 +127,16 @@ export function abrirHojaReserva({ reglas, sesion, api, contexto, alReservado })
   }
 }
 
+/** "2026-10-19 C2 10:00-11:00" -> "lunes 19 de octubre, Consultorio 2, 10:00 a 11:00" */
+export function textoMovidaDesde(reglas, valor) {
+  const m = /^(\d{4}-\d{2}-\d{2}) C(\d+) (\d{2}:\d{2})-(\d{2}:\d{2})$/.exec(valor || '');
+  if (!m) return valor || '';
+  return `${fechaLarga(m[1])}, ${nombreSala(reglas, Number(m[2]))}, ${m[3]} a ${m[4]}`;
+}
+
 /**
- * Hoja con el detalle de una reserva y la opción de cancelarla.
+ * Hoja con el detalle de una reserva y las opciones de moverla o cancelarla.
+ * `alCancelada` se llama también después de mover, para que quien la abrió actualice su lista.
  */
 export function abrirHojaDetalle({ reglas, sesion, api, reserva, alCancelada }) {
   const administrativo = esAdministrativo(sesion.rol);
@@ -143,6 +152,7 @@ export function abrirHojaDetalle({ reglas, sesion, api, reserva, alCancelada }) 
   if (!esBloqueo && reserva.titularNombre) filas.push(el('dt', {}, 'A nombre de'), el('dd', {}, reserva.titularNombre));
   if (administrativo && reserva.creadaPor) filas.push(el('dt', {}, 'Realizada por'), el('dd', {}, reserva.creadaPor));
   if (esBloqueo && reserva.observacion) filas.push(el('dt', {}, 'Motivo'), el('dd', {}, reserva.observacion));
+  if (!esBloqueo && reserva.movidaDesde) filas.push(el('dt', {}, 'Movida desde'), el('dd', {}, textoMovidaDesde(reglas, reserva.movidaDesde)));
 
   const mostrarBoton = () => {
     reemplazarHijos(
@@ -150,10 +160,11 @@ export function abrirHojaDetalle({ reglas, sesion, api, reserva, alCancelada }) 
       el(
         'div',
         { clase: 'hoja-acciones' },
+        esBloqueo ? null : el('button', { clase: 'boton boton-secundario', type: 'button', enClick: () => abrirHojaMover({ reglas, sesion, api, reserva, alMovida: () => { hoja.cerrar(); alCancelada(); } }) }, 'Mover'),
         el('button', { clase: 'boton boton-secundario', type: 'button', enClick: pedirConfirmacion }, esBloqueo ? 'Quitar bloqueo' : 'Cancelar reserva'),
         el('button', { clase: 'boton boton-texto', type: 'button', enClick: () => hoja.cerrar() }, 'Cerrar')
       ),
-      !administrativo && !esBloqueo ? el('p', { clase: 'campo-ayuda' }, `Se puede cancelar hasta ${reglas.cancelacion.horasAntelacion} horas antes del inicio.`) : null
+      !administrativo && !esBloqueo ? el('p', { clase: 'campo-ayuda' }, `Se puede mover o cancelar hasta ${reglas.cancelacion.horasAntelacion} horas antes del inicio.`) : null
     );
   };
 

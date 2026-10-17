@@ -222,7 +222,7 @@ export function crearVistaGestion({ api, reglas, sesion }) {
                 el('span', { clase: `etiqueta etiqueta-${u.rol}` }, etiquetaRol(u.rol)),
                 u.activo ? null : el('span', { clase: 'etiqueta etiqueta-baja' }, 'Inactivo'),
                 etiquetaClave(u),
-                el('span', { clase: 'etiqueta' }, `Consultorios ${u.consPref.join(', ')}`)
+                el('span', { clase: 'etiqueta' }, u.espHabil.length === reglas.espacios.cantidad ? 'Todos los espacios' : `Espacios ${u.espHabil.join(', ')}`)
               )
             ),
             administrable

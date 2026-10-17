@@ -77,6 +77,9 @@ function eventoAReserva(evento, zonaHoraria) {
     cancelada,
     canceladaPor: privadas.canceladaPor || null,
     creadoEn: evento.created || null,
+    actualizadoEn: evento.updated || evento.created || null,
+    movidaDesde: privadas.movidaDesde || null,
+    movidaPor: privadas.movidaPor || null,
   };
 }
 
@@ -94,7 +97,10 @@ function reservaAEvento(reserva, zonaHoraria) {
     `Fecha: ${reserva.fecha}`,
     `Hora: ${minutosAHora(reserva.inicioMin)} a ${minutosAHora(reserva.finMin)}`,
     `Realizada por: ${reserva.creadaPor}`,
-  ].join('\n');
+    reserva.movidaDesde ? `Movida desde: ${reserva.movidaDesde}${reserva.movidaPor ? ` por ${reserva.movidaPor}` : ''}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   const evento = {
     summary: `C${reserva.consultorio}: ${nombre}`,
@@ -108,6 +114,8 @@ function reservaAEvento(reserva, zonaHoraria) {
         titularId: reserva.titularId || '',
         creadaPor: reserva.creadaPor || '',
         observacion: reserva.observacion || '',
+        movidaDesde: reserva.movidaDesde || '',
+        movidaPor: reserva.movidaPor || '',
       },
     },
   };
@@ -201,12 +209,29 @@ function crearRepositorioDeReservas(calendario, configGoogle, opciones) {
     return eventoAReserva(respuesta.data, zonaHoraria);
   }
 
+  /**
+   * Reemplaza los datos de una reserva (horario, consultorio, marca "movida desde") dentro del MISMO evento:
+   * conserva su identificador y no genera una cancelación. También se usa para deshacer un movimiento.
+   */
+  async function reemplazar(id, reserva) {
+    const actual = await calendario.events.get({ calendarId, eventId: id });
+    const privadas = (actual.data.extendedProperties && actual.data.extendedProperties.private) || {};
+    const recurso = reservaAEvento(reserva, zonaHoraria);
+    const respuesta = await calendario.events.patch({
+      calendarId,
+      eventId: id,
+      requestBody: { ...recurso, extendedProperties: { private: { ...privadas, ...recurso.extendedProperties.private } } },
+      sendUpdates: 'none',
+    });
+    return eventoAReserva(respuesta.data, zonaHoraria);
+  }
+
   /** Borra un evento. Se usa solo para deshacer una creación fallida, nunca para cancelar. */
   async function eliminar(id) {
     await calendario.events.delete({ calendarId, eventId: id, sendUpdates: 'none' });
   }
 
-  return { listarDia, listarRango, obtener, crear, cancelar, eliminar };
+  return { listarDia, listarRango, obtener, crear, cancelar, reemplazar, eliminar };
 }
 
 module.exports = {

@@ -71,7 +71,7 @@ export function abrirHojaUsuario({ reglas, sesion, api, usuario, alGuardado }) {
   const campoId = esAlta ? el('input', { id: 'usuario-id', type: 'text', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', maxlength: 20 }) : null;
   const campoNombre = el('input', { id: 'usuario-nombre', type: 'text', autocomplete: 'off', maxlength: 60, value: usuario ? usuario.nombre : '' });
   const campoRol = el('select', { id: 'usuario-rol', disabled: esUnoMismo || roles.length === 1 }, roles.map((r) => el('option', { value: r, selected: usuario ? usuario.rol === r : r === 'usuario' }, etiquetaRol(r))));
-  const consultorios = selectorConsultorios(reglas, usuario ? usuario.consPref : Array.from({ length: reglas.espacios.cantidad }, (_, i) => i + 1));
+  const consultorios = selectorConsultorios(reglas, usuario ? usuario.espHabil : Array.from({ length: reglas.espacios.cantidad }, (_, i) => i + 1));
   const campoActivo = esAlta ? null : el('input', { id: 'usuario-activo', type: 'checkbox', checked: usuario.activo, disabled: esUnoMismo });
   const mensaje = el('div', { clase: 'mensaje-error', role: 'alert', hidden: true });
   const boton = el('button', { clase: 'boton boton-primario', type: 'submit' }, esAlta ? 'Crear usuario' : 'Guardar cambios');
@@ -92,17 +92,17 @@ export function abrirHojaUsuario({ reglas, sesion, api, usuario, alGuardado }) {
         const elegidos = leerElegidos(consultorios);
         if (esAlta && !/^[A-Za-z0-9]{3,20}$/.test(campoId.value.trim())) return mostrarError('El usuario debe tener de 3 a 20 letras o números, sin espacios.');
         if (!nombre) return mostrarError('Escribí el nombre.');
-        if (elegidos.length === 0) return mostrarError('Elegí al menos un consultorio.');
+        if (elegidos.length === 0) return mostrarError('Elegí al menos un espacio habilitado.');
 
         boton.disabled = true;
         let r;
         if (esAlta) {
-          r = await api.crearUsuario({ id: campoId.value.trim(), nombre, rol: campoRol.value, consPref: elegidos });
+          r = await api.crearUsuario({ id: campoId.value.trim(), nombre, rol: campoRol.value, espHabil: elegidos });
         } else {
           const cambios = {};
           if (nombre !== usuario.nombre) cambios.nombre = nombre;
           if (!campoRol.disabled && campoRol.value !== usuario.rol) cambios.rol = campoRol.value;
-          if (JSON.stringify(elegidos) !== JSON.stringify([...usuario.consPref].sort((a, b) => a - b))) cambios.consPref = elegidos;
+          if (JSON.stringify(elegidos) !== JSON.stringify([...usuario.espHabil].sort((a, b) => a - b))) cambios.espHabil = elegidos;
           if (!campoActivo.disabled && campoActivo.checked !== usuario.activo) cambios.activo = campoActivo.checked;
           if (Object.keys(cambios).length === 0) {
             hoja.cerrar();
@@ -123,7 +123,7 @@ export function abrirHojaUsuario({ reglas, sesion, api, usuario, alGuardado }) {
     esAlta ? el('div', { clase: 'campo' }, el('label', { for: 'usuario-id' }, 'Usuario'), campoId, el('span', { clase: 'campo-ayuda' }, 'Con este nombre ingresa. De 3 a 20 letras o números, sin espacios.')) : el('dl', { clase: 'datos' }, el('dt', {}, 'Usuario'), el('dd', {}, usuario.id)),
     el('div', { clase: 'campo' }, el('label', { for: 'usuario-nombre' }, 'Nombre'), campoNombre),
     el('div', { clase: 'campo' }, el('label', { for: 'usuario-rol' }, 'Perfil'), campoRol, esUnoMismo ? el('span', { clase: 'campo-ayuda' }, 'No podés cambiar tu propio perfil.') : null),
-    el('fieldset', { clase: 'campo' }, el('legend', {}, 'Consultorios que usa'), consultorios),
+    el('fieldset', { clase: 'campo' }, el('legend', {}, 'Espacios habilitados'), consultorios, el('span', { clase: 'campo-ayuda' }, 'Un usuario solo ve y reserva en estos espacios. Administración y gestión pueden reservarle en cualquier otro si hace falta.')),
     campoActivo
       ? el('div', { clase: 'campo' }, el('label', { clase: 'casilla' }, campoActivo, ' Usuario activo'), el('span', { clase: 'campo-ayuda' }, esUnoMismo ? 'No podés desactivarte a vos mismo.' : 'Si lo desactivás, pierde el acceso de inmediato.'))
       : null,

@@ -13,6 +13,7 @@
 const {
   validarNuevaReserva,
   validarCancelacion,
+  validarMovimiento,
   validarBloqueo,
   haySuperposicion,
   minutosAHora,
@@ -25,7 +26,10 @@ function horarioOcupado() {
 
 /** Desempate determinista: quién fue creado primero (por fecha de creación y, si empatan, por id). */
 function llegoAntes(a, b) {
-  if (a.creadoEn && b.creadoEn && a.creadoEn !== b.creadoEn) return a.creadoEn < b.creadoEn;
+  // Se compara el momento en que cada una tomó ese lugar: su última modificación (una reserva movida vale desde que se movió).
+  const ta = a.actualizadoEn || a.creadoEn;
+  const tb = b.actualizadoEn || b.creadoEn;
+  if (ta && tb && ta !== tb) return ta < tb;
   return String(a.id) < String(b.id);
 }
 
@@ -52,6 +56,7 @@ async function crearReserva({ reglas, repo, sesion, titular, entrada, ahora }) {
     hora: entrada.hora,
     duracion: entrada.duracion,
     ahora,
+    espHabil: sesion.espHabil,
   });
   if (!validacion.ok) return validacion;
 
@@ -95,6 +100,59 @@ async function cancelarReserva({ reglas, repo, sesion, id, ahora, instante = new
   if (reserva.cancelada) return { ok: true, reserva, yaCancelada: true };
   const cancelada = await repo.cancelar(id, sesion.nombre, instante);
   return { ok: true, reserva: cancelada };
+}
+
+/** "2026-10-19 C1 10:00-11:00": de dónde viene una reserva movida (queda registrado en el evento). */
+function textoDeOrigen(r) {
+  return `${r.fecha} C${r.consultorio} ${minutosAHora(r.inicioMin)}-${minutosAHora(r.finMin)}`;
+}
+
+/**
+ * Mueve una reserva a otro día, hora, duración o consultorio, dentro del mismo evento del calendario
+ * (con la marca "movida desde"). Si el lugar nuevo está ocupado, la reserva original queda intacta.
+ */
+async function moverReserva({ reglas, repo, sesion, id, destino, ahora }) {
+  const original = await repo.obtener(id);
+  if (!original) return { ok: false, codigo: 'NO_ENCONTRADA', mensaje: 'La reserva no existe.', estado: 404 };
+  if (original.tipo === 'bloqueo') {
+    return { ok: false, codigo: 'NO_SE_PUEDE_MOVER_BLOQUEO', mensaje: 'Un bloqueo no se puede mover: quítelo y cree otro.', estado: 400 };
+  }
+  if (original.cancelada) {
+    return { ok: false, codigo: 'RESERVA_CANCELADA', mensaje: 'La reserva está cancelada y no se puede mover.', estado: 409 };
+  }
+
+  const validacion = validarMovimiento(reglas, {
+    rol: sesion.rol,
+    usuarioId: sesion.id,
+    duenoId: original.titularId,
+    original,
+    destino,
+    ahora,
+    espHabil: sesion.espHabil,
+  });
+  if (!validacion.ok) return validacion;
+
+  // La propia reserva no cuenta como ocupación del lugar nuevo (por ejemplo, al correrla 30 minutos).
+  const existentes = (await repo.listarDia(validacion.fecha)).filter((e) => e.id !== id);
+  if (haySuperposicion(existentes, validacion).length > 0) return horarioOcupado();
+
+  const movida = await repo.reemplazar(id, {
+    ...original,
+    consultorio: validacion.consultorio,
+    fecha: validacion.fecha,
+    inicioMin: validacion.inicioMin,
+    finMin: validacion.finMin,
+    movidaDesde: textoDeOrigen(original),
+    movidaPor: sesion.nombre,
+  });
+
+  // Si alguien tomó ese lugar casi al mismo tiempo y llegó antes, se vuelve al horario original.
+  const otros = (await repo.listarDia(movida.fecha)).filter((e) => e.id !== id);
+  if (haySuperposicion(otros, movida).some((otro) => llegoAntes(otro, movida))) {
+    await repo.reemplazar(id, original);
+    return horarioOcupado();
+  }
+  return { ok: true, reserva: movida };
 }
 
 /**
@@ -151,4 +209,4 @@ async function crearBloqueo({ reglas, repo, sesion, entrada, ahora }) {
   return { ok: true, reservas: creados };
 }
 
-module.exports = { crearReserva, cancelarReserva, crearBloqueo };
+module.exports = { crearReserva, cancelarReserva, moverReserva, crearBloqueo };

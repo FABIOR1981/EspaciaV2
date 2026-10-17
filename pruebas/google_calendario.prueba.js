@@ -181,3 +181,16 @@ test('listarRango: devuelve las reservas de varios días y recorre todas las pá
   const rango = await repo.listarRango('2026-10-15', '2026-10-31');
   assert.deepEqual(rango.map((r) => r.fecha).sort(), ['2026-10-16', '2026-10-19']);
 });
+
+test('reemplazar: cambia el horario dentro del mismo evento y deja la marca de dónde venía', async () => {
+  const { cal, repo } = nuevoRepo();
+  const creada = await repo.crear(reservaBase());
+  const movida = await repo.reemplazar(creada.id, { ...creada, fecha: '2026-10-19', consultorio: 4, inicioMin: 900, finMin: 990, movidaDesde: '2026-10-16 C2 10:00-11:00', movidaPor: 'Gestora G' });
+  assert.equal(movida.id, creada.id);
+  assert.equal(cal.eventos.size, 1);
+  assert.deepEqual([movida.fecha, movida.consultorio, movida.inicioMin, movida.finMin], ['2026-10-19', 4, 900, 990]);
+  assert.equal(movida.movidaDesde, '2026-10-16 C2 10:00-11:00');
+  assert.equal(movida.movidaPor, 'Gestora G');
+  assert.equal(movida.titularId, 'AdrianaPR'); // se conserva a nombre de quién está
+  assert.equal(movida.creadaPor, 'Adriana Perla R');
+});

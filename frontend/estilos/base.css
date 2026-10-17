@@ -137,6 +137,7 @@ dialog.hoja {
   overflow: hidden;
 }
 dialog.hoja[open] { display: flex; flex-direction: column; animation: hoja-entra .18s ease-out; }
+dialog.hoja[data-oculta] { visibility: hidden; }
 dialog.hoja::backdrop { background: rgba(23, 48, 59, .55); }
 .hoja-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 8px 4px 22px; }
 .hoja-cabecera h2 { font-size: 1.25rem; font-weight: 650; }

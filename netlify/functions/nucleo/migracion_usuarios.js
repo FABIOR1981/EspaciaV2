@@ -4,7 +4,7 @@
  * ({ version: 1, usuarios: [...] }). Lógica pura: recibe datos y devuelve datos.
  *
  * - El identificador pasa a ser el `nomUsu` (se conserva tal cual, con sus mayúsculas).
- * - Se descartan email, tipdocu y documento.
+ * - Se descartan email, tipdocu y documento. `consPref` pasa a llamarse `espHabil` (espacios habilitados).
  * - La contraseña antigua (SHA-256) se conserva: el login de V2 la acepta una sola vez y la
  *   reemplaza por un hash con sal.
  * - requiereCambioPass queda en true si ya lo estaba O si la clave sigue siendo la inicial
@@ -45,7 +45,9 @@ function migrarUsuarios(usuariosAntiguos, { cantidadConsultorios }) {
 
     if (!ROLES.includes(u.rol)) problemas.push(`el usuario "${id}" tiene un rol desconocido`);
     if (typeof u.contrasena !== 'string' || u.contrasena.length === 0) problemas.push(`el usuario "${id}" no tiene contraseña`);
-    const consPref = Array.isArray(u.consPref) ? u.consPref.filter((c) => Number.isInteger(c) && c >= 1 && c <= cantidadConsultorios) : [];
+    // En Espacia este dato se llamaba "consPref" y se entendía como preferencia; en V2 son los espacios habilitados.
+    const origen = Array.isArray(u.espHabil) ? u.espHabil : u.consPref;
+    const espHabil = Array.isArray(origen) ? origen.filter((c) => Number.isInteger(c) && c >= 1 && c <= cantidadConsultorios) : [];
 
     const tieneClaveInicial = u.contrasena === sha256Hex(`${id}${CLAVE_INICIAL_ANTIGUA}`);
     if (tieneClaveInicial && u.activo !== false) conClaveInicial += 1;
@@ -54,7 +56,7 @@ function migrarUsuarios(usuariosAntiguos, { cantidadConsultorios }) {
       id,
       nombre: String(u.nombre || id).trim(),
       rol: u.rol,
-      consPref,
+      espHabil,
       activo: u.activo !== false,
       requiereCambioPass: Boolean(u.requiereCambioPass) || tieneClaveInicial,
       contrasena: u.contrasena,

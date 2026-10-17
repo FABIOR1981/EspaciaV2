@@ -206,3 +206,131 @@ test('el bloqueo de día completo cubre el horario real del sábado (hasta las 1
   assert.equal(reservas[0].inicioMin, 8 * 60);
   assert.equal(reservas[0].finMin, 16 * 60);
 });
+
+// ---------- Mover una reserva ----------
+
+const mover = (repo, sesion, id, destino = {}, ahora = AHORA) =>
+  s.moverReserva({ reglas, repo, sesion, id, destino: { consultorio: 2, fecha: '2026-10-20', hora: '10:00', duracion: 60, ...destino }, ahora });
+
+test('mover: el titular cambia día, hora y consultorio dentro del mismo evento, con la marca "movida desde"', async () => {
+  const { cal, repo } = entorno();
+  const { reserva } = await reservar(repo, ANA); // lunes 19, 10:00, consultorio 2
+  const r = await mover(repo, ANA, reserva.id, { fecha: '2026-10-20', hora: '15:00', consultorio: 3 });
+  assert.equal(r.ok, true);
+  assert.equal(r.reserva.id, reserva.id); // el mismo evento: no hay cancelación ni una reserva nueva
+  assert.deepEqual([r.reserva.fecha, r.reserva.inicioMin, r.reserva.consultorio], ['2026-10-20', 900, 3]);
+  assert.equal(r.reserva.movidaDesde, '2026-10-19 C2 10:00-11:00');
+  assert.equal(r.reserva.movidaPor, 'Adriana Perla R');
+  assert.equal(r.reserva.cancelada, false);
+  assert.equal(cal.eventos.size, 1);
+  const evento = cal.eventos.get(reserva.id);
+  assert.ok(evento.summary.startsWith('C3:'));
+  assert.match(evento.description, /Movida desde: 2026-10-19 C2 10:00-11:00 por Adriana Perla R/);
+  // El lugar anterior queda libre y el nuevo ocupado.
+  assert.equal((await reservar(repo, LUIS)).ok, true);
+  assert.equal((await reservar(repo, LUIS, { fecha: '2026-10-20', hora: '15:00', consultorio: 3 })).codigo, 'HORARIO_OCUPADO');
+});
+
+test('mover: si el lugar nuevo está ocupado, la reserva original queda intacta', async () => {
+  const { repo } = entorno();
+  const { reserva } = await reservar(repo, ANA);
+  await reservar(repo, LUIS, { fecha: '2026-10-20', hora: '15:00', consultorio: 3 });
+  const r = await mover(repo, ANA, reserva.id, { fecha: '2026-10-20', hora: '15:30', consultorio: 3 });
+  assert.equal(r.codigo, 'HORARIO_OCUPADO');
+  assert.equal(r.estado, 409);
+  const intacta = await repo.obtener(reserva.id);
+  assert.deepEqual([intacta.fecha, intacta.inicioMin, intacta.consultorio, intacta.movidaDesde], ['2026-10-19', 600, 2, null]);
+});
+
+test('mover: se puede correr unos minutos aunque se superponga con su propio horario', async () => {
+  const { repo } = entorno();
+  const { reserva } = await reservar(repo, ANA); // 10:00 a 11:00
+  const r = await mover(repo, ANA, reserva.id, { fecha: '2026-10-19', hora: '10:30' });
+  assert.equal(r.ok, true);
+  assert.deepEqual([r.reserva.inicioMin, r.reserva.finMin], [630, 690]);
+});
+
+test('mover: si queda igual, se avisa', async () => {
+  const { repo } = entorno();
+  const { reserva } = await reservar(repo, ANA);
+  assert.equal((await mover(repo, ANA, reserva.id, { fecha: '2026-10-19' })).codigo, 'SIN_CAMBIOS');
+});
+
+test('mover: mismos límites que cancelar sobre el horario original (24 h para el usuario)', async () => {
+  const { repo } = entorno();
+  const { reserva } = await reservar(repo, ANA, { fecha: '2026-10-16' }); // viernes 10:00: faltan exactamente 24 h
+  const r = await mover(repo, ANA, reserva.id, { fecha: '2026-10-19' });
+  assert.equal(r.codigo, 'FUERA_DE_PLAZO_DE_CANCELACION');
+  assert.match(r.mensaje, /mover/);
+  assert.doesNotMatch(r.mensaje, /cancelar/);
+  // Gestión y administración no tienen ese límite.
+  assert.equal((await mover(repo, GESTOR, reserva.id, { fecha: '2026-10-19' })).ok, true);
+  const otra = await reservar(repo, ANA, { fecha: '2026-10-16', consultorio: 3 });
+  assert.equal((await mover(repo, ADMIN, otra.reserva.id, { fecha: '2026-10-19', consultorio: 3 })).ok, true);
+});
+
+test('mover: un usuario solo mueve las suyas; admin y gestor, cualquiera', async () => {
+  const { repo } = entorno();
+  const { reserva } = await reservar(repo, ANA);
+  const r = await mover(repo, LUIS, reserva.id, { fecha: '2026-10-20' });
+  assert.equal(r.codigo, 'NO_ES_SU_RESERVA');
+  assert.equal(r.estado, 403);
+  assert.match(r.mensaje, /mover/);
+  assert.equal((await mover(repo, GESTOR, reserva.id, { fecha: '2026-10-20' })).ok, true);
+});
+
+test('mover: nadie mueve una reserva que ya pasó, ni siquiera administración', async () => {
+  const { repo } = entorno();
+  const { reserva } = await reservar(repo, ADMIN, { fecha: '2026-10-10' }); // el admin sí puede crear en el pasado
+  assert.equal((await mover(repo, ADMIN, reserva.id, { fecha: '2026-10-20' })).codigo, 'RESERVA_PASADA');
+});
+
+test('mover: el destino sigue las reglas de una reserva nueva (día laborable, no pasado, espacios habilitados)', async () => {
+  const { repo } = entorno();
+  const { reserva } = await reservar(repo, ANA);
+  assert.equal((await mover(repo, ANA, reserva.id, { fecha: '2026-10-18' })).codigo, 'DIA_NO_LABORAL');
+  assert.equal((await mover(repo, ANA, reserva.id, { fecha: '2026-10-14' })).codigo, 'FECHA_PASADA');
+  assert.equal((await mover(repo, ANA, reserva.id, { fecha: '2027-03-01' })).codigo, 'MUY_ADELANTADA');
+
+  const acotada = { ...ANA, espHabil: [2] };
+  const noHabilitado = await mover(repo, acotada, reserva.id, { consultorio: 3 });
+  assert.equal(noHabilitado.codigo, 'ESPACIO_NO_HABILITADO');
+  assert.equal(noHabilitado.estado, 403);
+  // Contingencia: administración la puede mover a un espacio no habilitado para esa persona.
+  assert.equal((await mover(repo, ADMIN, reserva.id, { consultorio: 3 })).ok, true);
+});
+
+test('mover: no se mueven bloqueos, canceladas ni reservas inexistentes', async () => {
+  const { repo } = entorno();
+  const { reservas } = await bloquear(repo, GESTOR);
+  assert.equal((await mover(repo, GESTOR, reservas[0].id, { fecha: '2026-10-20' })).codigo, 'NO_SE_PUEDE_MOVER_BLOQUEO');
+  const { reserva } = await reservar(repo, ANA, { consultorio: 4 });
+  await cancelar(repo, ANA, reserva.id);
+  assert.equal((await mover(repo, ANA, reserva.id, { fecha: '2026-10-20' })).codigo, 'RESERVA_CANCELADA');
+  assert.equal((await mover(repo, ANA, 'no-existe')).estado, 404);
+});
+
+test('mover: si otra persona toma el lugar casi al mismo tiempo, la reserva vuelve a su horario original', async () => {
+  const { cal, repo } = entorno();
+  const { reserva } = await reservar(repo, ANA);
+  const parcheOriginal = cal.events.patch;
+  cal.events.patch = async (args) => {
+    cal.events.patch = parcheOriginal; // el rival aparece justo antes de que se guarde el movimiento; el deshacer usa el parche real
+    await cal.events.insert({
+      requestBody: {
+        summary: 'C3: Rival',
+        start: { dateTime: '2026-10-20T15:00:00' },
+        end: { dateTime: '2026-10-20T16:00:00' },
+        extendedProperties: { private: { titularId: 'Rival', tipo: 'reserva' } },
+      },
+      sendUpdates: 'none',
+    });
+    return parcheOriginal(args);
+  };
+  const r = await mover(repo, ANA, reserva.id, { fecha: '2026-10-20', hora: '15:00', consultorio: 3 });
+  assert.equal(r.codigo, 'HORARIO_OCUPADO');
+  const vuelta = await repo.obtener(reserva.id);
+  assert.deepEqual([vuelta.fecha, vuelta.inicioMin, vuelta.consultorio], ['2026-10-19', 600, 2]);
+  assert.equal(vuelta.cancelada, false);
+  assert.equal((await repo.listarDia('2026-10-20')).filter((x) => x.titularId === 'Rival').length, 1);
+});

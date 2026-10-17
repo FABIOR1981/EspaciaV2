@@ -2,9 +2,9 @@
 /**
  * /api/usuarios   (admin y gestor)
  *   GET                                  lista (sin contraseñas)
- *   POST   { id, nombre, rol, consPref? }       alta; devuelve la clave temporal UNA sola vez
+ *   POST   { id, nombre, rol, espHabil? }       alta; devuelve la clave temporal UNA sola vez
  *   POST   ?id=...&accion=reiniciar-clave        reinicia la clave; devuelve la temporal UNA sola vez
- *   PATCH  ?id=...  { nombre?, rol?, consPref?, activo? }
+ *   PATCH  ?id=...  { nombre?, rol?, espHabil?, activo? }
  */
 const { crearManejador, responder, responderError } = require('./nucleo/http');
 const { dependenciasPorDefecto } = require('./nucleo/dependencias');
@@ -29,7 +29,7 @@ exports.crearHandler = (dependencias) =>
           reglas: deps.reglas,
           almacen: deps.almacen,
           sesion,
-          datos: { id: cuerpo.id, nombre: cuerpo.nombre, rol: cuerpo.rol, consPref: cuerpo.consPref },
+          datos: { id: cuerpo.id, nombre: cuerpo.nombre, rol: cuerpo.rol, espHabil: cuerpo.espHabil },
           ahora,
         });
         return r.ok ? responder(201, { usuario: r.usuario, claveTemporal: r.claveTemporal, venceEl: r.venceEl }) : responderError(r);

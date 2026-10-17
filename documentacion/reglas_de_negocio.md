@@ -167,9 +167,9 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 
 ---
 
-## 13. Implementación (v0.8.0)
+## 13. Implementación (v0.9.0)
 
-**Archivos y qué cubren** (185 pruebas automáticas del servidor, más un recorrido de 15 pasos en un navegador real; corren solas en GitHub Actions en cada subida):
+**Archivos y qué cubren** (202 pruebas automáticas del servidor, más un recorrido de 15 pasos en un navegador real; corren solas en GitHub Actions en cada subida):
 
 | Archivo | Contenido |
 |---|---|
@@ -199,7 +199,7 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 - *Bloqueos:* elegir día, consultorios (uno, varios o "todos"), horario o "todo el día" (usa el horario real de ese día) y un motivo opcional. Se ve la lista de bloqueos vigentes de las próximas 12 semanas y cada uno se puede quitar. Si el horario choca con una reserva existente, se rechaza y no se crea ninguno. Ruta nueva: `GET /api/bloqueos?desde=&hasta=`.
 - *Usuarios:* lista con buscador, alta, edición (nombre, perfil, consultorios, activo) y reinicio de clave. La clave temporal se muestra una sola vez, con botón para copiarla. El gestor solo ve acciones sobre usuarios comunes; nadie puede cambiarse el perfil ni desactivarse a sí mismo.
 
-**Pendientes de implementar:** el respaldo diario (`respaldo.js`, programado), el límite de intentos de ingreso y **mover una reserva** (ver propuesta abajo).
+**Pendientes de implementar:** el respaldo diario (`respaldo.js`, programado), el límite de intentos de ingreso (mover reservas ya está implementado).
 
 ### Rutas HTTP
 
@@ -212,6 +212,7 @@ En Espacia, días laborales, horario de cierre, duraciones y rango de consultori
 | `/api/reservas` | GET `?desde=&hasta=[&usuario=]` | con sesión | Mis reservas; admin y gestor pueden pedir las de otra persona |
 | `/api/reservas` | GET `?desde=&hasta=&todas=1` | admin y gestor | Todas las reservas próximas |
 | `/api/reservas` | POST `{consultorio, fecha, hora, duracion, paraUsuario?}` | con sesión | Crear reserva |
+| `/api/reservas` | PATCH `?id=` `{consultorio, fecha, hora, duracion}` | con sesión | Mover una reserva (ver sección 14) |
 | `/api/reservas` | DELETE `?id=` | con sesión | Cancelar (también sirve para deshacer un bloqueo) |
 | `/api/bloqueos` | POST `{consultorios, fecha, horaInicio?, horaFin?, diaCompleto?, observacion?}` | admin y gestor | Crear bloqueos, todo o nada |
 | `/api/usuarios` | GET / POST / PATCH `?id=` / POST `?id=&accion=reiniciar-clave` | admin y gestor | Listar, alta, editar y reiniciar clave |
@@ -241,7 +242,7 @@ Cada uno vive en un solo lugar del código; cambiarlo es una edición pequeña.
 
 15. **Identificadores de usuario:** solo letras y números, de 3 a 20 caracteres, sin espacios (todos los usuarios actuales cumplen: 4 a 10). El alta no permite repetirlos sin distinguir mayúsculas.
 16. **Nadie puede desactivarse ni cambiarse el rol a sí mismo.** Además impide dejar el sistema sin administradores. El gestor no puede modificar, reiniciar ni crear gestores o administradores.
-17. **Edición de usuarios:** solo se pueden cambiar nombre, rol, preferencias de consultorio y estado activo. Cualquier otro campo enviado (por ejemplo la contraseña) se ignora.
+17. **Edición de usuarios:** solo se pueden cambiar nombre, rol, espacios habilitados y estado activo. Cualquier otro campo enviado (por ejemplo la contraseña) se ignora.
 18. **Clave inicial:** se muestra una sola vez al crear o reiniciar, no se guarda en ningún lado, y obliga a cambiarla en el primer ingreso (ver decisión 24 para su forma y vigencia).
 19. **Migración realizada con tu archivo real:** 58 usuarios (54 `usuario`, 2 `gestor`, 2 `admin`; 56 activos). 45 quedan con `requiereCambioPass = true`: los 44 que seguían con la clave inicial más 1 que ya estaba marcado.
 
@@ -249,6 +250,17 @@ Cada uno vive en un solo lugar del código; cambiarlo es una edición pequeña.
 21. **Cambio de clave obligatorio, reforzado en el servidor:** mientras `requiereCambioPass` sea verdadero, solo funciona `/api/clave`; el resto responde 403 `DEBE_CAMBIAR_CLAVE`.
 22. **Sin CORS:** el navegador llama a `/api/...` en el mismo sitio, por lo que no se habilita ningún otro origen.
 23. **Detalle de errores de configuración:** el nombre de la variable que falta se muestra al navegador solo con `ESPACIAV2_MODO=pruebas`; en producción solo queda en el log de Netlify.
+
+24. **Clave inicial simple y de vida corta (decisión de Fabio):** para el perfil `usuario` es **su identificador + `1234567`**, la misma construcción de Espacia, porque hay personas mayores a quienes una clave compleja les dificulta el ingreso. Como es predecible, **vence a los 7 días** de crearse o reiniciarse (`claveInicial.diasDeVigencia` en `reglas.json`); el último día sirve completo. Pasado el vencimiento no permite ingresar y quien acierta la clave recibe el aviso "Tu clave inicial venció. Pedile a la administración que la reinicie"; reiniciar abre una ventana nueva de 7 días. **Gestión y administración** reciben una clave inicial **aleatoria** (12 caracteres) que no vence por fecha. Las cuentas migradas de Espacia que siguen con la clave inicial vencen todas en una fecha general (`claveInicial.vencimientoLegado`, hoy 30/11/2026: **ajustarla al abrir V2 a los usuarios**). Si alguien pasa a gestión o administración antes de estrenar su clave simple, esa clave deja de servir. En la pantalla de gestión cada persona muestra "Debe cambiar la clave (hasta el …)" o "Clave inicial vencida: reiniciar".
+25. **"Reservas" para administración y gestión:** donde el usuario común ve "Mis reservas" (solo las suyas), administración y gestión ven **todas** las reservas próximas, con buscador por nombre, filtro por consultorio y "Solo las mías"; pueden cancelar y mover desde ahí. Ruta: `GET /api/reservas?desde=&hasta=&todas=1` (403 para usuarios comunes).
+26. **Mover una reserva (implementado):** se registra **dentro del mismo evento** del calendario, con la marca "movida desde…" (ver sección 14).
+27. **Espacios habilitados (`espHabil`), decisión de Fabio:** el dato que en Espacia se llamaba `consPref` y se entendía como preferencia pasa a llamarse `espHabil`.
+    - Un **usuario común** solo puede **ver** y **reservar** en sus espacios habilitados: los demás consultorios no aparecen en su grilla (ni siquiera como "Ocupado"), y el servidor rechaza una reserva en otro (`ESPACIO_NO_HABILITADO`, 403). El servidor tampoco le entrega datos de esos consultorios.
+    - **Administración y gestión** ven todos los consultorios y pueden reservarle a cualquier persona en **cualquier espacio**, aunque no lo tenga habilitado (para contingencias).
+    - Si una persona tiene una reserva en un consultorio no habilitado (porque se la hizo administración o gestión), ese consultorio **aparece ese día** en su grilla y la reserva figura en "Mis reservas", para poder verla, moverla a un espacio habilitado o cancelarla.
+    - Los bloqueos de "todos los consultorios" se ven siempre como "Ocupado".
+    - Compatibilidad: los archivos que todavía tienen `consPref` se siguen leyendo como `espHabil`; el nombre se reemplaza la próxima vez que se guarda a esa persona. Sin dato, se entienden todos los espacios habilitados.
+    - Un usuario debe tener al menos un espacio habilitado.
 
 **Pendiente de definir en la capa HTTP:**
 - Protección contra intentos de adivinar claves (límite de intentos por usuario o por origen). Las funciones de Netlify no guardan estado; las opciones son aprovechar el costo del hash (unos 50 ms por intento) más un límite de peticiones de Netlify, o registrar los intentos fallidos en otro lugar.
@@ -258,15 +270,18 @@ Cada uno vive en un solo lugar del código; cambiarlo es una edición pequeña.
 
 ---
 
-## 14. Propuesta: mover una reserva (a decidir)
+## 14. Mover una reserva (implementado)
 
-**Reglas (mismas que la cancelación):**
-- Usuario común: solo reservas propias, con más de 24 horas de antelación respecto del **horario original** (si `reglaFinDeSemana` está activa, el lunes exige 72 h).
-- Admin y gestor: cualquier reserva, sin límite de antelación; no se puede mover una reserva que ya pasó.
-- El **horario nuevo** sigue las reglas de una reserva nueva para quien la pide (día laborable, dentro del horario, hasta 12 semanas, sin superposiciones).
+**Quién y cuándo (mismos límites que una cancelación, sobre el horario ORIGINAL):**
+- Usuario común: solo reservas propias, con más de 24 horas de antelación (si `reglaFinDeSemana` está activa, el lunes exige 72 h).
+- Administración y gestión: cualquier reserva, sin límite de antelación; no se puede mover una reserva que ya pasó.
 
-**Comportamiento:** se revisa el lugar nuevo antes de soltar el anterior; si el nuevo está ocupado, la reserva original queda intacta.
+**Horario nuevo:** sigue las reglas de una reserva nueva para quien la pide (día laborable, dentro del horario, hasta 12 semanas, sin superponerse). El usuario común solo puede elegir sus espacios habilitados; administración y gestión, cualquiera.
 
-**Registro (confirmado):** moverla dentro del mismo evento del calendario, con la marca "movida desde ...", en lugar de cancelar y crear otra. Así los informes de canceladas no incluyen movimientos que no son cancelaciones.
-
-**Cuándo (recomendado):** después de las herramientas de gestión y antes de abrir V2 a los usuarios.
+**Cómo funciona:**
+- Se puede cambiar día, hora, duración y consultorio. Sigue siendo **la misma reserva** (mismo evento del calendario): no genera una cancelación ni una reserva nueva, y por lo tanto no aparece en los informes de canceladas.
+- Queda registrado de dónde venía ("Movida desde: lunes 19 de octubre, Consultorio 3, 09:00 a 10:00") y quién la movió.
+- Se revisa el lugar nuevo antes de soltar el anterior; si está ocupado, la reserva original queda intacta. Una reserva puede correrse aunque se superponga con su propio horario (por ejemplo, 30 minutos).
+- Si dos personas toman el mismo lugar casi al mismo tiempo, gana la que llegó antes; si pierde la reserva movida, **vuelve a su horario original**.
+- Los bloqueos no se mueven (se quitan y se crea otro); una reserva cancelada tampoco.
+- Ruta: `PATCH /api/reservas?id=...` con `{ consultorio, fecha, hora, duracion }`.

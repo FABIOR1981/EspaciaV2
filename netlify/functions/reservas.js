@@ -5,11 +5,12 @@
  *   GET    ?desde=...&hasta=...[&usuario=Id]       mis reservas (admin y gestor pueden pedir las de otra persona)
  *   GET    ?desde=...&hasta=...&todas=1             todas las reservas (solo admin y gestor)
  *   POST   { consultorio, fecha, hora, duracion, paraUsuario? }   crear
+ *   PATCH  ?id=... { consultorio, fecha, hora, duracion }   mover (mismas reglas que cancelar sobre el horario original)
  *   DELETE ?id=...                                 cancelar
  */
 const { crearManejador, responder, responderError } = require('./nucleo/http');
 const { dependenciasPorDefecto } = require('./nucleo/dependencias');
-const { crearReserva, cancelarReserva } = require('./nucleo/reservas_servicio');
+const { crearReserva, cancelarReserva, moverReserva } = require('./nucleo/reservas_servicio');
 const { listarDiaParaSesion, listarReservasDe, listarTodasLasReservas, reservaParaSesion } = require('./nucleo/vistas_reservas');
 const { puedeReservarPara, mismoUsuario } = require('./nucleo/permisos');
 
@@ -53,6 +54,19 @@ exports.crearHandler = (dependencias) =>
           ahora,
         });
         return r.ok ? responder(201, { reserva: reservaParaSesion(r.reserva, sesion) }) : responderError(r);
+      },
+
+      PATCH: async ({ deps, sesion, ahora, params, cuerpo }) => {
+        if (!params.id) return falta('Indique el "id" de la reserva.');
+        const r = await moverReserva({
+          reglas: deps.reglas,
+          repo: deps.repo,
+          sesion,
+          id: params.id,
+          destino: { consultorio: cuerpo.consultorio, fecha: cuerpo.fecha, hora: cuerpo.hora, duracion: cuerpo.duracion },
+          ahora,
+        });
+        return r.ok ? responder(200, { reserva: reservaParaSesion(r.reserva, sesion) }) : responderError(r);
       },
 
       DELETE: async ({ deps, sesion, ahora, instante, params }) => {

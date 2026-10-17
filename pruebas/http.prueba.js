@@ -24,11 +24,11 @@ const manejadores = {
 async function crearEntorno(opciones = {}) {
   const hash = (clave) => c.generarHash(clave);
   const usuarios = [
-    { id: 'Admin', nombre: 'Administración', rol: 'admin', consPref: [1, 2, 3, 4, 5], activo: true, requiereCambioPass: false, contrasena: await hash('ClaveAdmin1') },
-    { id: 'Gestora', nombre: 'Gestora G', rol: 'gestor', consPref: [1, 2, 3, 4, 5], activo: true, requiereCambioPass: false, contrasena: await hash('ClaveGestora1') },
-    { id: 'AdrianaPR', nombre: 'Adriana Perla R', rol: 'usuario', consPref: [2, 3], activo: true, requiereCambioPass: false, contrasena: await hash('ClaveAdriana1') },
-    { id: 'Luis', nombre: 'Luis Pérez', rol: 'usuario', consPref: [1], activo: true, requiereCambioPass: false, contrasena: await hash('ClaveLuis1') },
-    { id: 'Nuevo', nombre: 'Usuario Nuevo', rol: 'usuario', consPref: [1], activo: true, requiereCambioPass: true, contrasena: await hash('ClaveTemporal1') },
+    { id: 'Admin', nombre: 'Administración', rol: 'admin', espHabil: [1, 2, 3, 4, 5], activo: true, requiereCambioPass: false, contrasena: await hash('ClaveAdmin1') },
+    { id: 'Gestora', nombre: 'Gestora G', rol: 'gestor', espHabil: [1, 2, 3, 4, 5], activo: true, requiereCambioPass: false, contrasena: await hash('ClaveGestora1') },
+    { id: 'AdrianaPR', nombre: 'Adriana Perla R', rol: 'usuario', espHabil: [2, 3], activo: true, requiereCambioPass: false, contrasena: await hash('ClaveAdriana1') },
+    { id: 'Luis', nombre: 'Luis Pérez', rol: 'usuario', espHabil: [1, 2, 3, 4, 5], activo: true, requiereCambioPass: false, contrasena: await hash('ClaveLuis1') },
+    { id: 'Nuevo', nombre: 'Usuario Nuevo', rol: 'usuario', espHabil: [1], activo: true, requiereCambioPass: true, contrasena: await hash('ClaveTemporal1') },
   ];
   const cal = crearCalendarioSimulado();
   const repo = g.crearRepositorioDeReservas(cal, { calendarioId: 'cal' }, { zonaHoraria: 'America/Montevideo', notificarInvitados: false });
@@ -77,7 +77,7 @@ test('un método no permitido responde 405 e indica cuáles sí', async () => {
   const { llamar } = await crearEntorno();
   const r = await llamar('reservas', { metodo: 'PUT' });
   assert.equal(r.estado, 405);
-  assert.equal(r.encabezados.Allow, 'GET, POST, DELETE');
+  assert.equal(r.encabezados.Allow, 'GET, POST, PATCH, DELETE');
 });
 
 test('las respuestas no se guardan en caché del navegador y llevan nosniff', async () => {
@@ -95,7 +95,7 @@ test('ingresar: devuelve token, sesión y vencimiento según el rol', async () =
   assert.equal(usuario.estado, 200);
   assert.deepEqual(usuario.cuerpo.sesion, { id: 'AdrianaPR', nombre: 'Adriana Perla R', rol: 'usuario' });
   assert.equal(usuario.cuerpo.venceEnSegundos, 4 * 3600);
-  assert.deepEqual(usuario.cuerpo.consPref, [2, 3]); // para abrir la agenda en su consultorio preferido
+  assert.deepEqual(usuario.cuerpo.espHabil, [2, 3]); // para abrir la agenda en su consultorio preferido
   assert.ok(!usuario.crudo.includes('scrypt'));
   const admin = await llamar('ingresar', { metodo: 'POST', cuerpo: { usuario: 'Admin', clave: 'ClaveAdmin1' } });
   assert.equal(admin.cuerpo.venceEnSegundos, 12 * 3600);
@@ -334,7 +334,7 @@ test('usuarios: editar por PATCH, reiniciar clave y reglas del gestor', async ()
   const admin = await ingresarComo('Admin', 'ClaveAdmin1');
   const gestora = await ingresarComo('Gestora', 'ClaveGestora1');
 
-  const edicion = await llamar('usuarios', { metodo: 'PATCH', params: { id: 'Luis' }, token: admin, cuerpo: { nombre: 'Luis P.', consPref: [1, 2] } });
+  const edicion = await llamar('usuarios', { metodo: 'PATCH', params: { id: 'Luis' }, token: admin, cuerpo: { nombre: 'Luis P.', espHabil: [1, 2] } });
   assert.equal(edicion.estado, 200);
   assert.equal(edicion.cuerpo.usuario.nombre, 'Luis P.');
   assert.equal((await llamar('usuarios', { metodo: 'PATCH', token: admin, cuerpo: { nombre: 'X' } })).estado, 400);
@@ -423,4 +423,47 @@ test('modo pruebas: un error interno muestra el motivo; en producción, no', asy
     if (modoOriginal === undefined) delete process.env.ESPACIAV2_MODO;
     else process.env.ESPACIAV2_MODO = modoOriginal;
   }
+});
+
+test('un usuario no puede reservar en un consultorio no habilitado; gestión sí puede reservarle ahí (contingencia)', async () => {
+  const { llamar, ingresarComo } = await crearEntorno();
+  const ana = await ingresarComo('AdrianaPR', 'ClaveAdriana1'); // habilitada en 2 y 3
+  const gestora = await ingresarComo('Gestora', 'ClaveGestora1');
+
+  const negado = await llamar('reservas', { metodo: 'POST', token: ana, cuerpo: { ...RESERVA, consultorio: 1 } });
+  assert.equal(negado.estado, 403);
+  assert.equal(negado.cuerpo.error.codigo, 'ESPACIO_NO_HABILITADO');
+  assert.equal((await llamar('reservas', { metodo: 'POST', token: ana, cuerpo: { ...RESERVA, consultorio: 3 } })).estado, 201);
+
+  const contingencia = await llamar('reservas', { metodo: 'POST', token: gestora, cuerpo: { ...RESERVA, consultorio: 1, paraUsuario: 'AdrianaPR' } });
+  assert.equal(contingencia.estado, 201);
+  assert.equal(contingencia.cuerpo.reserva.consultorio, 1);
+  assert.equal(contingencia.cuerpo.reserva.titularId, 'AdrianaPR');
+});
+
+test('PATCH /reservas: mover una reserva; otro usuario no puede; faltan datos', async () => {
+  const { llamar, ingresarComo } = await crearEntorno();
+  const ana = await ingresarComo('AdrianaPR', 'ClaveAdriana1');
+  const luis = await ingresarComo('Luis', 'ClaveLuis1');
+  const gestora = await ingresarComo('Gestora', 'ClaveGestora1');
+  const { cuerpo: { reserva } } = await llamar('reservas', { metodo: 'POST', token: ana, cuerpo: RESERVA }); // lunes 19, C2, 10:00
+  const destino = { consultorio: 3, fecha: '2026-10-20', hora: '14:00', duracion: 90 };
+
+  assert.equal((await llamar('reservas', { metodo: 'PATCH', params: { id: reserva.id }, token: luis, cuerpo: destino })).estado, 403);
+  assert.equal((await llamar('reservas', { metodo: 'PATCH', token: ana, cuerpo: destino })).estado, 400);
+
+  const movida = await llamar('reservas', { metodo: 'PATCH', params: { id: reserva.id }, token: ana, cuerpo: destino });
+  assert.equal(movida.estado, 200);
+  assert.equal(movida.cuerpo.reserva.id, reserva.id);
+  assert.equal(movida.cuerpo.reserva.consultorio, 3);
+  assert.equal(movida.cuerpo.reserva.movidaDesde, '2026-10-19 C2 10:00-11:00');
+
+  // El lugar viejo quedó libre y el nuevo figura ocupado para otros usuarios (sin datos de la persona).
+  assert.equal((await llamar('reservas', { params: { fecha: '2026-10-19' }, token: luis })).cuerpo.reservas.length, 0);
+  const vistaLuis = await llamar('reservas', { params: { fecha: '2026-10-20' }, token: luis });
+  assert.equal(vistaLuis.cuerpo.reservas[0].ocupado, true);
+  assert.ok(!vistaLuis.crudo.includes('movidaDesde'));
+  // Gestión la ve completa, con la marca.
+  const vistaGestora = await llamar('reservas', { params: { fecha: '2026-10-20' }, token: gestora });
+  assert.equal(vistaGestora.cuerpo.reservas[0].movidaDesde, '2026-10-19 C2 10:00-11:00');
 });
